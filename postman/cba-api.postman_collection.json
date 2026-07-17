@@ -1,0 +1,425 @@
+{
+  "info": {
+    "name": "CBA API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:8000" },
+    { "key": "token", "value": "" },
+    { "key": "two_factor_token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/auth/login", "host": ["{{base_url}}"], "path": ["admin", "auth", "login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"john\",\n  \"password\": \"securePassword123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Verify 2FA",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/auth/2fa/verify", "host": ["{{base_url}}"], "path": ["admin", "auth", "2fa", "verify"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"two_factor_token\": \"{{two_factor_token}}\",\n  \"code\": \"123456\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/auth/logout", "host": ["{{base_url}}"], "path": ["admin", "auth", "logout"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Account Products",
+      "item": [
+        {
+          "name": "List",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/account-products", "host": ["{{base_url}}"], "path": ["admin", "account-products"] }
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/account-products", "host": ["{{base_url}}"], "path": ["admin", "account-products"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"sme_current_account\",\n  \"product_type\": \"current\",\n  \"description\": \"SME current account product\",\n  \"currency_id\": 1,\n  \"currency_digits\": 2,\n  \"interest_rate\": 1.5,\n  \"interest_type\": \"daily_balance\",\n  \"interest_compounding_period\": \"monthly\",\n  \"interest_posting_period\": \"monthly\",\n  \"interest_calculation_days_in_year\": \"365\",\n  \"min_required_opening_balance\": 5000,\n  \"min_required_balance\": 1000,\n  \"enforce_min_required_balance\": true,\n  \"allow_overdraft\": true,\n  \"overdraft_limit\": 50000,\n  \"overdraft_interest_rate\": 5,\n  \"withhold_tax\": true,\n  \"is_lien_allowed\": true,\n  \"max_allowed_lien_limit\": 20000,\n  \"dormancy_period_days\": 365,\n  \"withdrawal_fee_amount\": 50,\n  \"withdrawal_fee_type\": \"flat\",\n  \"annual_fee_amount\": 1000,\n  \"annual_fee_on_month\": 1,\n  \"annual_fee_on_day\": 1,\n  \"min_balance_for_interest_calculation\": 1000,\n  \"savingsReferenceAccountId\": 1,\n  \"savingsControlAccountId\": 2,\n  \"interestOnSavingsAccountId\": 3,\n  \"incomeFromFeeAccountId\": 4,\n  \"incomeFromPenaltyAccountId\": 5,\n  \"transfersInSuspenseAccountId\": 13,\n  \"overdraftPortfolioControlId\": 7,\n  \"writeOffAccountId\": 12,\n  \"escheatLiabilityId\": 10,\n  \"incomeFromInterestId\": 8\n}"
+            }
+          }
+        },
+        {
+          "name": "Show",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/account-products/:id", "host": ["{{base_url}}"], "path": ["admin", "account-products", ":id"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Approve",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/account-products/:id/approve", "host": ["{{base_url}}"], "path": ["admin", "account-products", ":id", "approve"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Loan Products",
+      "item": [
+        {
+          "name": "List",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/loan-products", "host": ["{{base_url}}"], "path": ["admin", "loan-products"] }
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/loan-products", "host": ["{{base_url}}"], "path": ["admin", "loan-products"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"sme_working_capital_loan\",\n  \"description\": \"Short-term working capital loan for SMEs\",\n  \"currency_id\": 1,\n  \"interest_rate\": 18,\n  \"min_principal_amount\": 100000,\n  \"max_principal_amount\": 5000000,\n  \"default_principal_amount\": 500000,\n  \"min_nominal_interest_rate_per_period\": 1.5,\n  \"max_nominal_interest_rate_per_period\": 3,\n  \"interest_rate_frequency_type\": \"per_month\",\n  \"interest_method\": \"declining_balance\",\n  \"interest_calculation_period_type\": \"daily\",\n  \"repayment_every\": 1,\n  \"repayment_frequency_type\": \"months\",\n  \"number_of_repayments\": 12,\n  \"min_number_of_repayments\": 6,\n  \"max_number_of_repayments\": 24,\n  \"amortization_method\": \"equal_installments\",\n  \"grace_on_principal_periods\": 1,\n  \"grace_on_interest_periods\": 1,\n  \"grace_interest_free_periods\": 0,\n  \"grace_on_arrears_ageing\": 3,\n  \"arrears_tolerance_amount\": 100,\n  \"overdue_days_for_npa\": 90,\n  \"days_in_month_type\": \"actual\",\n  \"interest_calculation_days_in_year\": \"365\",\n  \"fundSourceAccountId\": 21,\n  \"loanPortfolioAccountId\": 22,\n  \"interestOnLoanAccountId\": 23,\n  \"incomeFromFeeAccountId\": 24,\n  \"incomeFromPenaltyAccountId\": 25,\n  \"writeOffAccountId\": 14,\n  \"transfersInSuspenseAccountId\": 15,\n  \"overpaymentLiabilityAccountId\": 18\n}"
+            }
+          }
+        },
+        {
+          "name": "Show",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/loan-products/:id", "host": ["{{base_url}}"], "path": ["admin", "loan-products", ":id"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Approve",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/loan-products/:id/approve", "host": ["{{base_url}}"], "path": ["admin", "loan-products", ":id", "approve"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Investment Products",
+      "item": [
+        {
+          "name": "List",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/investment-products", "host": ["{{base_url}}"], "path": ["admin", "investment-products"] }
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/investment-products", "host": ["{{base_url}}"], "path": ["admin", "investment-products"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"12_month_fixed_deposit\",\n  \"description\": \"12-month fixed term deposit product\",\n  \"currency_id\": 1,\n  \"interest_rate\": 8.5,\n  \"interest_type\": \"flat\",\n  \"interest_compounding_period\": \"monthly\",\n  \"interest_posting_period\": \"monthly\",\n  \"interest_calculation_days_in_year\": \"365\",\n  \"min_required_opening_balance\": 100000,\n  \"min_required_balance\": 100000,\n  \"locking_period_frequency\": 12,\n  \"locking_period_frequency_type\": \"months\",\n  \"min_deposit_term\": 3,\n  \"max_deposit_term\": 36,\n  \"min_deposit_term_type\": \"months\",\n  \"max_deposit_term_type\": \"months\",\n  \"in_multiples_of_deposit_term\": 1,\n  \"in_multiples_of_deposit_term_type\": \"months\",\n  \"min_deposit_amount\": 100000,\n  \"max_deposit_amount\": 50000000,\n  \"pre_closure_penal_applicable\": true,\n  \"pre_closure_penal_interest\": 2,\n  \"pre_closure_penal_interest_on_type\": \"whole_term\",\n  \"savingsReferenceAccountId\": 29,\n  \"savingsControlAccountId\": 30,\n  \"interestOnSavingsAccountId\": 31,\n  \"incomeFromFeeAccountId\": 32,\n  \"incomeFromPenaltyAccountId\": 33,\n  \"transfersInSuspenseAccountId\": 19,\n  \"writeOffAccountId\": 11\n}"
+            }
+          }
+        },
+        {
+          "name": "Show",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/investment-products/:id", "host": ["{{base_url}}"], "path": ["admin", "investment-products", ":id"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Approve",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/investment-products/:id/approve", "host": ["{{base_url}}"], "path": ["admin", "investment-products", ":id", "approve"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Permissions",
+      "item": [
+        {
+          "name": "List",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/permissions", "host": ["{{base_url}}"], "path": ["admin", "permissions"] }
+          }
+        },
+        {
+          "name": "Search by name",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/permissions?search=Branch Operator",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "permissions"],
+              "query": [{ "key": "search", "value": "Branch Operator" }]
+            }
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/permissions", "host": ["{{base_url}}"], "path": ["admin", "permissions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Approve Loan Products\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Show",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/permissions/:id", "host": ["{{base_url}}"], "path": ["admin", "permissions", ":id"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/permissions/:id", "host": ["{{base_url}}"], "path": ["admin", "permissions", ":id"], "variable": [{ "key": "id", "value": "1" }] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Approve Loan Products v2\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/permissions/:id", "host": ["{{base_url}}"], "path": ["admin", "permissions", ":id"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Roles",
+      "item": [
+        {
+          "name": "List",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/roles", "host": ["{{base_url}}"], "path": ["admin", "roles"] }
+          }
+        },
+        {
+          "name": "Search by name",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/roles?search=Branch Manager",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "roles"],
+              "query": [{ "key": "search", "value": "Branch Manager" }]
+            }
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/roles", "host": ["{{base_url}}"], "path": ["admin", "roles"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Branch Manager\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Show",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/roles/:id", "host": ["{{base_url}}"], "path": ["admin", "roles", ":id"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/roles/:id", "host": ["{{base_url}}"], "path": ["admin", "roles", ":id"], "variable": [{ "key": "id", "value": "1" }] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Branch Manager v2\",\n  \"permissions\": [\"view_reports\"]\n}"
+            }
+          }
+        },
+        {
+          "name": "Sync Permissions",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/roles/:id/assign", "host": ["{{base_url}}"], "path": ["admin", "roles", ":id", "assign"], "variable": [{ "key": "id", "value": "1" }] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permissions\": [\"view_reports\", \"view_users\"]\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/roles/:id", "host": ["{{base_url}}"], "path": ["admin", "roles", ":id"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "General Ledgers",
+      "item": [
+        {
+          "name": "List",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/admin/general-ledgers", "host": ["{{base_url}}"], "path": ["admin", "general-ledgers"] }
+          }
+        }
+      ]
+    }
+  ]
+}

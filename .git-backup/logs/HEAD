@@ -1,0 +1,8 @@
+0000000000000000000000000000000000000000 7fa1ae7753ce74561260ef03cc4cb52dbf01de04 Victor <victorikhianosen@gmail.com> 1783719318 +0100	commit (initial): first'
+7fa1ae7753ce74561260ef03cc4cb52dbf01de04 0000000000000000000000000000000000000000 Victor <victorikhianosen@gmail.com> 1783719329 +0100	Branch: renamed refs/heads/master to refs/heads/main
+0000000000000000000000000000000000000000 7fa1ae7753ce74561260ef03cc4cb52dbf01de04 Victor <victorikhianosen@gmail.com> 1783719329 +0100	Branch: renamed refs/heads/master to refs/heads/main
+7fa1ae7753ce74561260ef03cc4cb52dbf01de04 67a018e1537849ce08bb3b6d40ac4ef2ce86a434 Victor <victorikhianosen@gmail.com> 1783932425 +0100	pull: Fast-forward
+67a018e1537849ce08bb3b6d40ac4ef2ce86a434 b90abdc60c70f059368819ed831f8b9c49c77dc0 Victor <victorikhianosen@gmail.com> 1783990987 +0100	commit: update account product
+b90abdc60c70f059368819ed831f8b9c49c77dc0 43f698c03cd3cc41802ef2aaeead7419e7a809cf Victor <victorikhianosen@gmail.com> 1784139895 +0100	commit: update account
+43f698c03cd3cc41802ef2aaeead7419e7a809cf 9c32359629f01d437a2cd475cebab6c5143adca0 Victor <victorikhianosen@gmail.com> 1784140510 +0100	commit: before docker
+9c32359629f01d437a2cd475cebab6c5143adca0 e6fc0da863b8f6a9df8752b700bcc670d80f9a1f Victor <victorikhianosen@gmail.com> 1784277407 +0100	commit: update account
