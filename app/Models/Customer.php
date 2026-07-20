@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Hidden(['password', 'panic_password', 'pin'])]
 class Customer extends Model
@@ -65,5 +66,30 @@ class Customer extends Model
     public function documents(): HasMany
     {
         return $this->hasMany(Document::class);
+    }
+
+    public function addresses(): HasMany
+    {
+        return $this->hasMany(Address::class);
+    }
+
+    public function nextOfKin(): HasMany
+    {
+        return $this->hasMany(NextOfKin::class);
+    }
+
+    public function business(): HasOne
+    {
+        return $this->hasOne(Business::class);
+    }
+
+    public function directors(): HasMany
+    {
+        return $this->hasMany(Director::class);
+    }
+
+    public function signatories(): HasMany
+    {
+        return $this->hasMany(Signatory::class);
     }
 }

@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests\Admin\InvestmentProduct;
 
-use App\Enums\SavingsProductFinancialAccountType;
+use App\Enums\AccountProductType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -58,7 +58,6 @@ class StoreInvestmentProductRequest extends FormRequest
             'pre_closure_penal_interest_on_type'    => ['nullable', Rule::in(['whole_term', 'till_preclosure_date']), 'required_if:pre_closure_penal_applicable,true'],
 
             // Accounting (cash-based) — Fineract SavingProductAccountingParams field names.
-            'savingsReferenceAccountId'    => ['required', 'integer', 'exists:general_ledgers,id'],
             'savingsControlAccountId'      => ['required', 'integer', 'exists:general_ledgers,id'],
             'interestOnSavingsAccountId'   => ['required', 'integer', 'exists:general_ledgers,id'],
             'incomeFromFeeAccountId'       => ['required', 'integer', 'exists:general_ledgers,id'],
@@ -74,20 +73,19 @@ class StoreInvestmentProductRequest extends FormRequest
         $data = $this->validated();
 
         $mappings = [
-            SavingsProductFinancialAccountType::SAVINGS_REFERENCE->name     => $data['savingsReferenceAccountId'],
-            SavingsProductFinancialAccountType::SAVINGS_CONTROL->name       => $data['savingsControlAccountId'],
-            SavingsProductFinancialAccountType::INTEREST_ON_SAVINGS->name   => $data['interestOnSavingsAccountId'],
-            SavingsProductFinancialAccountType::INCOME_FROM_FEES->name      => $data['incomeFromFeeAccountId'],
-            SavingsProductFinancialAccountType::INCOME_FROM_PENALTIES->name => $data['incomeFromPenaltyAccountId'],
-            SavingsProductFinancialAccountType::TRANSFERS_SUSPENSE->name    => $data['transfersInSuspenseAccountId'],
+            AccountProductType::ACCOUNT_CONTROL->name       => $data['savingsControlAccountId'],
+            AccountProductType::INTEREST_ON_ACCOUNT->name   => $data['interestOnSavingsAccountId'],
+            AccountProductType::INCOME_FROM_FEES->name      => $data['incomeFromFeeAccountId'],
+            AccountProductType::INCOME_FROM_PENALTIES->name => $data['incomeFromPenaltyAccountId'],
+            AccountProductType::TRANSFERS_SUSPENSE->name    => $data['transfersInSuspenseAccountId'],
         ];
 
         if (! empty($data['writeOffAccountId'])) {
-            $mappings[SavingsProductFinancialAccountType::LOSSES_WRITTEN_OFF->name] = $data['writeOffAccountId'];
+            $mappings[AccountProductType::LOSSES_WRITTEN_OFF->name] = $data['writeOffAccountId'];
         }
 
         if (! empty($data['escheatLiabilityId'])) {
-            $mappings[SavingsProductFinancialAccountType::ESCHEAT_LIABILITY->name] = $data['escheatLiabilityId'];
+            $mappings[AccountProductType::ESCHEAT_LIABILITY->name] = $data['escheatLiabilityId'];
         }
 
         $data['general_ledgers'] = collect($mappings)->map(fn ($glId, $typeName) => [
@@ -96,7 +94,6 @@ class StoreInvestmentProductRequest extends FormRequest
         ])->values()->all();
 
         unset(
-            $data['savingsReferenceAccountId'],
             $data['savingsControlAccountId'],
             $data['interestOnSavingsAccountId'],
             $data['incomeFromFeeAccountId'],

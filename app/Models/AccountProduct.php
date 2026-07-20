@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class AccountProduct extends Model
 {
+    public const PRODUCT_TYPES = ['savings', 'current', 'merchant', 'corporate', 'domiciliary'];
+
     protected $guarded = [];
 
     protected function casts(): array
@@ -24,8 +26,6 @@ class AccountProduct extends Model
             'withhold_tax'                       => 'boolean',
             'is_lien_allowed'                    => 'boolean',
             'approved_at'                        => 'datetime',
-            'start_date'                          => 'date',
-            'close_date'                          => 'date',
 
             // Savings/current fee terms.
             'withdrawal_fee_amount'               => 'decimal:6',

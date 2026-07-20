@@ -2,7 +2,7 @@
 
 namespace App\Services\AccountProduct;
 
-use App\Enums\SavingsProductFinancialAccountType;
+use App\Enums\AccountProductType;
 use App\Models\AccountProduct;
 use App\Models\Currency;
 use App\Models\GeneralLedger;
@@ -67,13 +67,12 @@ class AccountProductService
 
             $data['code']            = $this->generateProductCode($data['product_type']);
             $data['currency_code']   = $currency->code;
-            $data['currency_digits'] = $data['currency_digits'] ?? 2;
             $data['created_by']      = auth()->id();
 
             $accountProduct = AccountProduct::create($data)->refresh();
 
             foreach ($generalLedgers as $mapping) {
-                $type = SavingsProductFinancialAccountType::fromName($mapping['financial_account_type']);
+                $type = AccountProductType::fromName($mapping['financial_account_type']);
 
                 $accountProduct->generalLedgerMappings()->create([
                     'general_ledger_id'           => $mapping['general_ledger_id'],
@@ -106,7 +105,6 @@ class AccountProductService
             $data['product_type'],
             $data['currency_id'],
             $data['currency_code'],
-            $data['currency_digits'],
             $data['status'],
             $data['created_by'],
             $data['approved_by'],
@@ -200,7 +198,7 @@ class AccountProductService
         $providedTypes = collect($mappings)->pluck('financial_account_type');
 
         foreach ($providedTypes as $name) {
-            if (! in_array($name, SavingsProductFinancialAccountType::names(), true)) {
+            if (! in_array($name, AccountProductType::names(), true)) {
                 throw ValidationException::withMessages([
                     'general_ledgers' => ["'{$name}' is not a valid financial account type for account products."],
                 ]);
@@ -249,14 +247,14 @@ class AccountProductService
     }
 
     /**
-     * @return SavingsProductFinancialAccountType[]
+     * @return AccountProductType[]
      */
     private function requiredFinancialAccountTypes(bool $allowOverdraft = false): array
     {
-        $required = SavingsProductFinancialAccountType::required();
+        $required = AccountProductType::required();
 
         if ($allowOverdraft) {
-            $required[] = SavingsProductFinancialAccountType::OVERDRAFT_PORTFOLIO_CONTROL;
+            $required[] = AccountProductType::OVERDRAFT_PORTFOLIO_CONTROL;
         }
 
         return $required;

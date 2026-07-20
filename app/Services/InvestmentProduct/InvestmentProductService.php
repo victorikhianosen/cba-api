@@ -2,7 +2,7 @@
 
 namespace App\Services\InvestmentProduct;
 
-use App\Enums\SavingsProductFinancialAccountType;
+use App\Enums\AccountProductType;
 use App\Models\Currency;
 use App\Models\GeneralLedger;
 use App\Models\InvestmentProduct;
@@ -54,7 +54,7 @@ class InvestmentProductService
             $investmentProduct = InvestmentProduct::create($data)->refresh();
 
             foreach ($generalLedgers as $mapping) {
-                $type = SavingsProductFinancialAccountType::fromName($mapping['financial_account_type']);
+                $type = AccountProductType::fromName($mapping['financial_account_type']);
 
                 $investmentProduct->generalLedgerMappings()->create([
                     'general_ledger_id'           => $mapping['general_ledger_id'],
@@ -180,14 +180,14 @@ class InvestmentProductService
         $providedTypes = collect($mappings)->pluck('financial_account_type');
 
         foreach ($providedTypes as $name) {
-            if (! in_array($name, SavingsProductFinancialAccountType::names(), true)) {
+            if (! in_array($name, AccountProductType::names(), true)) {
                 throw ValidationException::withMessages([
                     'general_ledgers' => ["'{$name}' is not a valid financial account type for investment products."],
                 ]);
             }
         }
 
-        foreach (SavingsProductFinancialAccountType::required() as $type) {
+        foreach (AccountProductType::required() as $type) {
             if (! $providedTypes->contains($type->name)) {
                 throw ValidationException::withMessages([
                     'general_ledgers' => ["{$type->label()} GL mapping is required."],

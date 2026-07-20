@@ -22,6 +22,7 @@ class GlobalLogger
             Log::error('');
             Log::error('************* EXCEPTION *****************');
             Log::error('REQUEST ID: ' . $requestId);
+            Log::error('USER: ' . $this->userLabel($request));
             Log::error('URL: ' . $request->fullUrl());
             Log::error('METHOD: ' . $request->method());
             Log::error('IP: ' . $request->ip());
@@ -39,6 +40,7 @@ class GlobalLogger
         Log::info('');
         Log::info('************* GLOBAL REQUEST *************');
         Log::info('REQUEST ID: ' . $requestId);
+        Log::info('USER: ' . $this->userLabel($request));
         Log::info('URL: ' . $request->fullUrl());
         Log::info('METHOD: ' . $request->method());
         Log::info('IP: ' . $request->ip());
@@ -54,6 +56,23 @@ class GlobalLogger
         Log::info('');
 
         return $response;
+    }
+
+    protected function userLabel(Request $request): string
+    {
+        $user = $request->user('user');
+
+        if (! $user) {
+            return 'guest';
+        }
+
+        return sprintf(
+            '#%s %s %s <%s>',
+            $user->id,
+            $user->first_name,
+            $user->last_name,
+            $user->email
+        );
     }
 
     protected function sanitize(Request $request): array

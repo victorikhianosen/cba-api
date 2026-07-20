@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-  
+
         Schema::dropIfExists('customers');
 
         Schema::create('customers', function (Blueprint $table) {
@@ -42,7 +42,6 @@ return new class extends Migration
             $table->string('middle_name')->nullable();
             $table->string('last_name')->nullable();
 
-            $table->string('business_name')->nullable();
 
             $table->string('phone')->unique();
             $table->string('email')->nullable()->unique();
@@ -54,6 +53,7 @@ return new class extends Migration
 
             $table->string('marital_status')->nullable();
             $table->string('gender')->nullable();
+            $table->string('sex')->nullable();
             $table->date('dob')->nullable();
 
             $table->string('occupation')->nullable();
@@ -81,6 +81,11 @@ return new class extends Migration
 
             $table->string('mother_maiden_name')->nullable();
             $table->string('spouse_name')->nullable();
+
+            $table->foreignId('created_by')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete();
 
             $table->foreignId('approved_by')
                 ->nullable()

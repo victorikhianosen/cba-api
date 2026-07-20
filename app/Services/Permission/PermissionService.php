@@ -15,13 +15,15 @@ class PermissionService
         private AuditService $audit,
     ) {}
 
-    public function list(int $perPage = 15, ?string $search = null): LengthAwarePaginator
+  
+        public function list(?string $search = null)
     {
         return Permission::query()
-            ->when($search, fn ($query) => $query->where('name', 'like', '%' . $this->normalizeName($search) . '%'))
+            ->when($search, fn ($query) =>
+                $query->where('name', 'like', '%' . $this->normalizeName($search) . '%')
+            )
             ->latest()
-            ->paginate($perPage)
-            ->withQueryString();
+            ->get();
     }
 
     public function find(int $id): Permission

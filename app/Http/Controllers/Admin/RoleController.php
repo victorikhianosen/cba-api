@@ -26,7 +26,7 @@ class RoleController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $roles = $this->roles->list($request->integer('per_page', 15), $request->string('search')->value() ?: null);
+        $roles = $this->roles->list($request->integer('per_page', 100), $request->string('search')->value() ?: null);
 
         return $this->success(
             message: 'Roles retrieved successfully.',

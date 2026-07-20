@@ -24,26 +24,46 @@ class PermissionController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $permissions = $this->permissions->list($request->integer('per_page', 15), $request->string('search')->value() ?: null);
+        $permissions = $this->permissions->list(
+            $request->string('search')->value() ?: null
+        );
 
         return $this->success(
             message: 'Permissions retrieved successfully.',
             data: PermissionResource::collection($permissions),
             meta: [
                 'summary' => [
-                    'total_permissions' => $permissions->total(),
-
-                    'total_assigned' => Permission::query()
-                        ->whereHas('roles')
-                        ->count(),
-
-                    'total_unassigned' => Permission::query()
-                        ->doesntHave('roles')
-                        ->count(),
+                    'total_permissions' => $permissions->count(),
+                    'total_assigned' => Permission::has('roles')->count(),
+                    'total_unassigned' => Permission::doesntHave('roles')->count(),
                 ],
             ],
         );
     }
+
+
+    // public function index(Request $request): JsonResponse
+    // {
+    //     $permissions = $this->permissions->list($request->integer('per_page', 15), $request->string('search')->value() ?: null);
+
+    //     return $this->success(
+    //         message: 'Permissions retrieved successfully.',
+    //         data: PermissionResource::collection($permissions),
+    //         meta: [
+    //             'summary' => [
+    //                 'total_permissions' => $permissions->total(),
+
+    //                 'total_assigned' => Permission::query()
+    //                     ->whereHas('roles')
+    //                     ->count(),
+
+    //                 'total_unassigned' => Permission::query()
+    //                     ->doesntHave('roles')
+    //                     ->count(),
+    //             ],
+    //         ],
+    //     );
+    // }
 
     public function show(int $id): JsonResponse
     {

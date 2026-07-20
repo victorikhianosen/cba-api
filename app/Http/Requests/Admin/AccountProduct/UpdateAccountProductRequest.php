@@ -52,8 +52,6 @@ class UpdateAccountProductRequest extends FormRequest
             'annual_fee_on_month'                  => ['nullable', 'integer', 'min:1', 'max:12'],
             'annual_fee_on_day'                    => ['nullable', 'integer', 'min:1', 'max:31'],
             'min_balance_for_interest_calculation' => ['nullable', 'numeric', 'min:0'],
-            'start_date'                          => ['nullable', 'date'],
-            'close_date'                           => ['nullable', 'date', 'after_or_equal:start_date'],
         ];
     }
 }

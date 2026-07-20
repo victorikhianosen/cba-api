@@ -27,9 +27,6 @@ return new class extends Migration
 
             $table->string('currency_code', 3);
 
-            $table->smallInteger('currency_digits')
-                ->default(2);
-
             $table->decimal('interest_rate', 19, 6)
                 ->default(0);
 
@@ -107,8 +104,6 @@ return new class extends Migration
             $table->unsignedTinyInteger('annual_fee_on_month')->nullable();
             $table->unsignedTinyInteger('annual_fee_on_day')->nullable();
             $table->decimal('min_balance_for_interest_calculation', 19, 6)->nullable();
-            $table->date('start_date')->nullable();
-            $table->date('close_date')->nullable();
 
             $table->foreignId('created_by')
                 ->nullable()

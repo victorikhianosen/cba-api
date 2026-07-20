@@ -217,6 +217,44 @@ class CustomerController extends Controller
         }
     }
 
+    /**
+     * There is no hard or soft delete for customers — DELETE reuses the same
+     * close() status-change-plus-audit-log flow as POST {id}/close.
+     */
+    public function destroy(CloseCustomerRequest $request, int $id): JsonResponse
+    {
+        try {
+            $customer = $this->customers->find($id);
+            $customer = $this->customers->close($customer, $request->validated()['reason']);
+
+            return $this->success(
+                message: 'Customer deleted successfully.',
+                data: new CustomerResource($customer),
+            );
+        } catch (ModelNotFoundException $e) {
+            return $this->error(
+                message: 'The requested customer was not found.',
+                responseCode: '404',
+                statusCode: 404,
+            );
+        } catch (ValidationException $e) {
+            return $this->error(
+                message: $e->getMessage(),
+                responseCode: '101',
+                statusCode: 422,
+                errors: $e->errors(),
+            );
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->error(
+                message: 'We are unable to process your request please try again.',
+                responseCode: '500',
+                statusCode: 500,
+            );
+        }
+    }
+
     public function updateDocument(UpdateDocumentRequest $request, int $customerId, int $documentId): JsonResponse
     {
         try {

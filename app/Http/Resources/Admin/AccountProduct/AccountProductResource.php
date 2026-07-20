@@ -2,7 +2,7 @@
 
 namespace App\Http\Resources\Admin\AccountProduct;
 
-use App\Enums\SavingsProductFinancialAccountType;
+use App\Enums\AccountProductType;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -24,7 +24,6 @@ class AccountProductResource extends JsonResource
             'description'                         => $this->description,
             'currency_id'                         => $this->currency_id,
             'currency_code'                       => $this->currency_code,
-            'currency_digits'                     => $this->currency_digits,
             'interest_rate'                       => $this->interest_rate,
             'interest_type'                       => $this->interest_type,
             'interest_compounding_period'          => $this->interest_compounding_period,
@@ -49,34 +48,30 @@ class AccountProductResource extends JsonResource
             'annual_fee_on_month'                  => $this->annual_fee_on_month,
             'annual_fee_on_day'                    => $this->annual_fee_on_day,
             'min_balance_for_interest_calculation' => $this->min_balance_for_interest_calculation,
-            'start_date'                          => $this->start_date,
-            'close_date'                           => $this->close_date,
 
             'created_by'                          => $this->created_by,
             'approved_by'                         => $this->approved_by,
             'approved_at'                          => $this->approved_at,
             'status'                              => $this->status,
 
-            'savingsReferenceAccountId'    => $accountByType[SavingsProductFinancialAccountType::SAVINGS_REFERENCE->name]?->general_ledger_id ?? null,
-            'savingsReferenceAccountCode'  => $accountByType[SavingsProductFinancialAccountType::SAVINGS_REFERENCE->name]?->generalLedger?->gl_code ?? null,
-            'savingsControlAccountId'      => $accountByType[SavingsProductFinancialAccountType::SAVINGS_CONTROL->name]?->general_ledger_id ?? null,
-            'savingsControlAccountCode'    => $accountByType[SavingsProductFinancialAccountType::SAVINGS_CONTROL->name]?->generalLedger?->gl_code ?? null,
-            'interestOnSavingsAccountId'   => $accountByType[SavingsProductFinancialAccountType::INTEREST_ON_SAVINGS->name]?->general_ledger_id ?? null,
-            'interestOnSavingsAccountCode' => $accountByType[SavingsProductFinancialAccountType::INTEREST_ON_SAVINGS->name]?->generalLedger?->gl_code ?? null,
-            'incomeFromFeeAccountId'       => $accountByType[SavingsProductFinancialAccountType::INCOME_FROM_FEES->name]?->general_ledger_id ?? null,
-            'incomeFromFeeAccountCode'     => $accountByType[SavingsProductFinancialAccountType::INCOME_FROM_FEES->name]?->generalLedger?->gl_code ?? null,
-            'incomeFromPenaltyAccountId'   => $accountByType[SavingsProductFinancialAccountType::INCOME_FROM_PENALTIES->name]?->general_ledger_id ?? null,
-            'incomeFromPenaltyAccountCode' => $accountByType[SavingsProductFinancialAccountType::INCOME_FROM_PENALTIES->name]?->generalLedger?->gl_code ?? null,
-            'transfersInSuspenseAccountId' => $accountByType[SavingsProductFinancialAccountType::TRANSFERS_SUSPENSE->name]?->general_ledger_id ?? null,
-            'transfersInSuspenseAccountCode' => $accountByType[SavingsProductFinancialAccountType::TRANSFERS_SUSPENSE->name]?->generalLedger?->gl_code ?? null,
-            'overdraftPortfolioControlId'  => $accountByType[SavingsProductFinancialAccountType::OVERDRAFT_PORTFOLIO_CONTROL->name]?->general_ledger_id ?? null,
-            'overdraftPortfolioControlCode' => $accountByType[SavingsProductFinancialAccountType::OVERDRAFT_PORTFOLIO_CONTROL->name]?->generalLedger?->gl_code ?? null,
-            'writeOffAccountId'            => $accountByType[SavingsProductFinancialAccountType::LOSSES_WRITTEN_OFF->name]?->general_ledger_id ?? null,
-            'writeOffAccountCode'          => $accountByType[SavingsProductFinancialAccountType::LOSSES_WRITTEN_OFF->name]?->generalLedger?->gl_code ?? null,
-            'escheatLiabilityId'           => $accountByType[SavingsProductFinancialAccountType::ESCHEAT_LIABILITY->name]?->general_ledger_id ?? null,
-            'escheatLiabilityCode'         => $accountByType[SavingsProductFinancialAccountType::ESCHEAT_LIABILITY->name]?->generalLedger?->gl_code ?? null,
-            'incomeFromInterestId'         => $accountByType[SavingsProductFinancialAccountType::INCOME_FROM_INTEREST->name]?->general_ledger_id ?? null,
-            'incomeFromInterestCode'       => $accountByType[SavingsProductFinancialAccountType::INCOME_FROM_INTEREST->name]?->generalLedger?->gl_code ?? null,
+            'savingsControlGLId'           => $accountByType[AccountProductType::ACCOUNT_CONTROL->name]?->general_ledger_id ?? null,
+            'savingsControlGLCode'         => $accountByType[AccountProductType::ACCOUNT_CONTROL->name]?->generalLedger?->gl_code ?? null,
+            'interestOnSavingsGLId'        => $accountByType[AccountProductType::INTEREST_ON_ACCOUNT->name]?->general_ledger_id ?? null,
+            'interestOnSavingsGLCode'      => $accountByType[AccountProductType::INTEREST_ON_ACCOUNT->name]?->generalLedger?->gl_code ?? null,
+            'incomeFromFeeGLId'            => $accountByType[AccountProductType::INCOME_FROM_FEES->name]?->general_ledger_id ?? null,
+            'incomeFromFeeGLCode'          => $accountByType[AccountProductType::INCOME_FROM_FEES->name]?->generalLedger?->gl_code ?? null,
+            'incomeFromPenaltyGLId'        => $accountByType[AccountProductType::INCOME_FROM_PENALTIES->name]?->general_ledger_id ?? null,
+            'incomeFromPenaltyGLCode'      => $accountByType[AccountProductType::INCOME_FROM_PENALTIES->name]?->generalLedger?->gl_code ?? null,
+            'transfersInSuspenseGLId'      => $accountByType[AccountProductType::TRANSFERS_SUSPENSE->name]?->general_ledger_id ?? null,
+            'transfersInSuspenseGLCode'    => $accountByType[AccountProductType::TRANSFERS_SUSPENSE->name]?->generalLedger?->gl_code ?? null,
+            'overdraftPortfolioGLId'       => $accountByType[AccountProductType::OVERDRAFT_PORTFOLIO_CONTROL->name]?->general_ledger_id ?? null,
+            'overdraftPortfolioGLCode'     => $accountByType[AccountProductType::OVERDRAFT_PORTFOLIO_CONTROL->name]?->generalLedger?->gl_code ?? null,
+            'writeOffGLId'                 => $accountByType[AccountProductType::LOSSES_WRITTEN_OFF->name]?->general_ledger_id ?? null,
+            'writeOffGLCode'               => $accountByType[AccountProductType::LOSSES_WRITTEN_OFF->name]?->generalLedger?->gl_code ?? null,
+            'escheatLiabilityGLId'         => $accountByType[AccountProductType::ESCHEAT_LIABILITY->name]?->general_ledger_id ?? null,
+            'escheatLiabilityGLCode'       => $accountByType[AccountProductType::ESCHEAT_LIABILITY->name]?->generalLedger?->gl_code ?? null,
+            'incomeFromInterestGLId'       => $accountByType[AccountProductType::INCOME_FROM_INTEREST->name]?->general_ledger_id ?? null,
+            'incomeFromInterestGLCode'     => $accountByType[AccountProductType::INCOME_FROM_INTEREST->name]?->generalLedger?->gl_code ?? null,
 
             'created_at'                           => $this->created_at,
             'updated_at'                           => $this->updated_at,

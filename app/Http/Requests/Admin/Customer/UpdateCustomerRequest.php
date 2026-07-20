@@ -26,7 +26,6 @@ class UpdateCustomerRequest extends FormRequest
             'first_name'    => ['sometimes', 'nullable', 'string', 'max:255'],
             'middle_name'   => ['sometimes', 'nullable', 'string', 'max:255'],
             'last_name'     => ['sometimes', 'nullable', 'string', 'max:255'],
-            'business_name' => ['sometimes', 'nullable', 'string', 'max:255'],
 
             'phone'    => ['sometimes', 'string', 'max:20', Rule::unique('customers', 'phone')->ignore($customerId)],
             'email'    => ['sometimes', 'nullable', 'email', 'max:255', Rule::unique('customers', 'email')->ignore($customerId)],

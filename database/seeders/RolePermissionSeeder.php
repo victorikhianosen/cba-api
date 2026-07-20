@@ -19,7 +19,7 @@ class RolePermissionSeeder extends Seeder
         'view_branches', 'create_branches', 'update_branches', 'delete_branches',
         'view_banks', 'create_banks', 'update_banks', 'delete_banks',
         'view_currencies', 'create_currencies', 'update_currencies', 'delete_currencies',
-        'view_customers', 'create_customers', 'update_customers',
+        'view_customers', 'create_customers', 'update_customers', 'delete_customers',
         'view_account_officers', 'create_account_officers', 'update_account_officers', 'delete_account_officers',
         'view_general_ledgers', 'create_general_ledgers', 'update_general_ledgers', 'delete_general_ledgers',
         'view_account_products', 'create_account_products', 'update_account_products', 'delete_account_products', 'approve_account_products',

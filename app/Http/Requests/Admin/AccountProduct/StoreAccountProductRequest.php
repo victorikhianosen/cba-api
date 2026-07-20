@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests\Admin\AccountProduct;
 
-use App\Enums\ProductCategory;
-use App\Enums\SavingsProductFinancialAccountType;
+use App\Enums\AccountProductType;
+use App\Models\AccountProduct;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -32,7 +32,7 @@ class StoreAccountProductRequest extends FormRequest
     {
         return [
             'name'                            => ['required', 'string', 'max:255', 'unique:account_products,name'],
-            'product_type'                    => ['required', 'string', Rule::in(ProductCategory::DEPOSIT->productTypes())],
+            'product_type'                    => ['required', 'string', Rule::in(AccountProduct::PRODUCT_TYPES)],
             'description'                     => ['nullable', 'string'],
             'currency_id'                     => ['required', 'integer', 'exists:currencies,id'],
             'interest_rate'                   => ['nullable', 'numeric', 'min:0'],
@@ -60,19 +60,17 @@ class StoreAccountProductRequest extends FormRequest
             'annual_fee_on_month'                  => ['nullable', 'integer', 'min:1', 'max:12'],
             'annual_fee_on_day'                    => ['nullable', 'integer', 'min:1', 'max:31'],
             'min_balance_for_interest_calculation' => ['nullable', 'numeric', 'min:0'],
-            'start_date'                          => ['nullable', 'date'],
-            'close_date'                           => ['nullable', 'date', 'after_or_equal:start_date'],
 
             // Accounting (cash-based) — Fineract SavingProductAccountingParams field names.
-            'savingsControlAccountId'         => ['required', 'integer', 'exists:general_ledgers,id'],
-            'interestOnSavingsAccountId'      => ['required', 'integer', 'exists:general_ledgers,id'],
-            'incomeFromFeeAccountId'          => ['required', 'integer', 'exists:general_ledgers,id'],
-            'incomeFromPenaltyAccountId'      => ['required', 'integer', 'exists:general_ledgers,id'],
-            'transfersInSuspenseAccountId'    => ['required', 'integer', 'exists:general_ledgers,id'],
-            'overdraftPortfolioControlId'     => ['required_if:allow_overdraft,true', 'nullable', 'integer', 'exists:general_ledgers,id'],
-            'writeOffAccountId'               => ['nullable', 'integer', 'exists:general_ledgers,id'],
-            'escheatLiabilityId'              => ['nullable', 'integer', 'exists:general_ledgers,id'],
-            'incomeFromInterestId'            => ['nullable', 'integer', 'exists:general_ledgers,id'],
+            'savingsControlGLId'               => ['required', 'integer', 'exists:general_ledgers,id'],
+            'interestOnSavingsGLId'            => ['required', 'integer', 'exists:general_ledgers,id'],
+            'incomeFromFeeGLId'                => ['required', 'integer', 'exists:general_ledgers,id'],
+            'incomeFromPenaltyGLId'            => ['required', 'integer', 'exists:general_ledgers,id'],
+            'transfersInSuspenseGLId'          => ['required', 'integer', 'exists:general_ledgers,id'],
+            'overdraftPortfolioGLId'           => ['required_if:allow_overdraft,true', 'nullable', 'integer', 'exists:general_ledgers,id'],
+            'writeOffGLId'                     => ['nullable', 'integer', 'exists:general_ledgers,id'],
+            'escheatLiabilityGLId'             => ['nullable', 'integer', 'exists:general_ledgers,id'],
+            'incomeFromInterestGLId'           => ['nullable', 'integer', 'exists:general_ledgers,id'],
         ];
     }
 
@@ -81,28 +79,27 @@ class StoreAccountProductRequest extends FormRequest
         $data = $this->validated();
 
         $mappings = [
-            SavingsProductFinancialAccountType::SAVINGS_REFERENCE->name       => $data['savingsReferenceAccountId'],
-            SavingsProductFinancialAccountType::SAVINGS_CONTROL->name         => $data['savingsControlAccountId'],
-            SavingsProductFinancialAccountType::INTEREST_ON_SAVINGS->name     => $data['interestOnSavingsAccountId'],
-            SavingsProductFinancialAccountType::INCOME_FROM_FEES->name        => $data['incomeFromFeeAccountId'],
-            SavingsProductFinancialAccountType::INCOME_FROM_PENALTIES->name   => $data['incomeFromPenaltyAccountId'],
-            SavingsProductFinancialAccountType::TRANSFERS_SUSPENSE->name      => $data['transfersInSuspenseAccountId'],
+            AccountProductType::ACCOUNT_CONTROL->name         => $data['savingsControlGLId'],
+            AccountProductType::INTEREST_ON_ACCOUNT->name     => $data['interestOnSavingsGLId'],
+            AccountProductType::INCOME_FROM_FEES->name        => $data['incomeFromFeeGLId'],
+            AccountProductType::INCOME_FROM_PENALTIES->name   => $data['incomeFromPenaltyGLId'],
+            AccountProductType::TRANSFERS_SUSPENSE->name      => $data['transfersInSuspenseGLId'],
         ];
 
-        if (! empty($data['overdraftPortfolioControlId'])) {
-            $mappings[SavingsProductFinancialAccountType::OVERDRAFT_PORTFOLIO_CONTROL->name] = $data['overdraftPortfolioControlId'];
+        if (! empty($data['overdraftPortfolioGLId'])) {
+            $mappings[AccountProductType::OVERDRAFT_PORTFOLIO_CONTROL->name] = $data['overdraftPortfolioGLId'];
         }
 
-        if (! empty($data['writeOffAccountId'])) {
-            $mappings[SavingsProductFinancialAccountType::LOSSES_WRITTEN_OFF->name] = $data['writeOffAccountId'];
+        if (! empty($data['writeOffGLId'])) {
+            $mappings[AccountProductType::LOSSES_WRITTEN_OFF->name] = $data['writeOffGLId'];
         }
 
-        if (! empty($data['escheatLiabilityId'])) {
-            $mappings[SavingsProductFinancialAccountType::ESCHEAT_LIABILITY->name] = $data['escheatLiabilityId'];
+        if (! empty($data['escheatLiabilityGLId'])) {
+            $mappings[AccountProductType::ESCHEAT_LIABILITY->name] = $data['escheatLiabilityGLId'];
         }
 
-        if (! empty($data['incomeFromInterestId'])) {
-            $mappings[SavingsProductFinancialAccountType::INCOME_FROM_INTEREST->name] = $data['incomeFromInterestId'];
+        if (! empty($data['incomeFromInterestGLId'])) {
+            $mappings[AccountProductType::INCOME_FROM_INTEREST->name] = $data['incomeFromInterestGLId'];
         }
 
         $generalLedgers = collect($mappings)->map(fn ($glId, $typeName) => [
@@ -111,16 +108,15 @@ class StoreAccountProductRequest extends FormRequest
         ])->values()->all();
 
         unset(
-            $data['savingsReferenceAccountId'],
-            $data['savingsControlAccountId'],
-            $data['interestOnSavingsAccountId'],
-            $data['incomeFromFeeAccountId'],
-            $data['incomeFromPenaltyAccountId'],
-            $data['transfersInSuspenseAccountId'],
-            $data['overdraftPortfolioControlId'],
-            $data['writeOffAccountId'],
-            $data['escheatLiabilityId'],
-            $data['incomeFromInterestId'],
+            $data['savingsControlGLId'],
+            $data['interestOnSavingsGLId'],
+            $data['incomeFromFeeGLId'],
+            $data['incomeFromPenaltyGLId'],
+            $data['transfersInSuspenseGLId'],
+            $data['overdraftPortfolioGLId'],
+            $data['writeOffGLId'],
+            $data['escheatLiabilityGLId'],
+            $data['incomeFromInterestGLId'],
         );
 
         $data['general_ledgers'] = $generalLedgers;

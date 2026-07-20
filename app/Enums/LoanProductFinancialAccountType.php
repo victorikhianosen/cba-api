@@ -11,7 +11,7 @@ namespace App\Enums;
  * roles exist in Fineract for a more advanced workflow we haven't built and
  * are intentionally omitted.
  */
-enum LoanProductFinancialAccountType: int implements FinancialAccountTypeContract
+enum LoanProductFinancialAccountType: int
 {
     case FUND_SOURCE = 1;
     case LOAN_PORTFOLIO = 2;

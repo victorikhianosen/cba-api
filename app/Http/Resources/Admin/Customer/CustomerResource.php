@@ -25,7 +25,6 @@ class CustomerResource extends JsonResource
             'first_name'    => $this->first_name,
             'middle_name'   => $this->middle_name,
             'last_name'     => $this->last_name,
-            'business_name' => $this->business_name,
 
             'phone'    => $this->phone,
             'email'    => $this->email,
@@ -72,7 +71,12 @@ class CustomerResource extends JsonResource
             'closed_at'      => $this->closed_at,
             'closure_reason' => $this->closure_reason,
 
-            'documents' => DocumentResource::collection($this->whenLoaded('documents')),
+            'documents'   => DocumentResource::collection($this->whenLoaded('documents')),
+            'addresses'   => AddressResource::collection($this->whenLoaded('addresses')),
+            'next_of_kin' => NextOfKinResource::collection($this->whenLoaded('nextOfKin')),
+            'business'    => new BusinessResource($this->whenLoaded('business')),
+            'directors'   => DirectorResource::collection($this->whenLoaded('directors')),
+            'signatories' => SignatoryResource::collection($this->whenLoaded('signatories')),
 
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

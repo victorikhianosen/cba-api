@@ -2,9 +2,8 @@
 
 namespace Database\Seeders;
 
-use App\Enums\FinancialAccountTypeContract;
 use App\Enums\LoanProductFinancialAccountType;
-use App\Enums\SavingsProductFinancialAccountType;
+use App\Enums\AccountProductType;
 use App\Models\AccountProduct;
 use App\Models\Currency;
 use App\Models\GeneralLedger;
@@ -44,10 +43,9 @@ class AccountProductSeeder extends Seeder
             'enforce_min_required_balance'  => true,
             'withhold_tax'                  => true,
             'dormancy_period_days'          => 365,
-            'general_ledgers'               => $this->mappingsFor(SavingsProductFinancialAccountType::required(), [
-                'SAVINGS_REFERENCE'     => 'savings_reference',
-                'SAVINGS_CONTROL'       => 'savings_control',
-                'INTEREST_ON_SAVINGS'   => 'interest_on_savings',
+            'general_ledgers'               => $this->mappingsFor(AccountProductType::required(), [
+                'ACCOUNT_CONTROL'       => 'savings_control',
+                'INTEREST_ON_ACCOUNT'   => 'interest_on_savings',
                 'INCOME_FROM_FEES'      => 'income_from_fees',
                 'INCOME_FROM_PENALTIES' => 'income_from_penalties',
                 'TRANSFERS_SUSPENSE'    => 'transfers_suspense',
@@ -92,10 +90,9 @@ class AccountProductSeeder extends Seeder
             'description'     => 'Fixed-term investment/deposit product seeded for testing.',
             'currency_id'     => $currency->id,
             'interest_rate'   => 12,
-            'general_ledgers' => $this->mappingsFor(SavingsProductFinancialAccountType::required(), [
-                'SAVINGS_REFERENCE'     => 'investment_savings_reference',
-                'SAVINGS_CONTROL'       => 'investment_savings_control',
-                'INTEREST_ON_SAVINGS'   => 'investment_interest_on_savings',
+            'general_ledgers' => $this->mappingsFor(AccountProductType::required(), [
+                'ACCOUNT_CONTROL'       => 'investment_savings_control',
+                'INTEREST_ON_ACCOUNT'   => 'investment_interest_on_savings',
                 'INCOME_FROM_FEES'      => 'investment_income_from_fees',
                 'INCOME_FROM_PENALTIES' => 'investment_income_from_penalties',
                 'TRANSFERS_SUSPENSE'    => 'investment_transfers_suspense',
@@ -104,13 +101,13 @@ class AccountProductSeeder extends Seeder
     }
 
     /**
-     * @param FinancialAccountTypeContract[] $types
+     * @param AccountProductType[]|LoanProductFinancialAccountType[] $types
      * @param array<string, string> $glNameByType Case name => GL name.
      */
     private function mappingsFor(array $types, array $glNameByType): array
     {
         return collect($types)
-            ->map(function (FinancialAccountTypeContract $type) use ($glNameByType) {
+            ->map(function ($type) use ($glNameByType) {
                 $ledger = GeneralLedger::where('name', $glNameByType[$type->name])->firstOrFail();
 
                 return [

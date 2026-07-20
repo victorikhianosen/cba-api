@@ -93,7 +93,7 @@ Route::middleware(['auth:user'])->group(function () {
         Route::post('/', 'store')->middleware('permission:create_account_products');
         Route::get('{id}', 'show')->middleware('permission:view_account_products');
         Route::put('{id}', 'update')->middleware('permission:update_account_products');
-        Route::delete('{id}', 'destroy')->middleware('permission:delete_account_products');
+        // Route::delete('{id}', 'destroy')->middleware('permission:delete_account_products');
         Route::post('{id}/approve', 'approve')->middleware('permission:approve_account_products');
         Route::post('{id}/status', 'updateStatus')->middleware('permission:update_account_products');
     });
@@ -126,6 +126,7 @@ Route::middleware(['auth:user'])->group(function () {
         Route::post('{id}/approve', 'approve')->middleware('permission:update_customers');
         Route::post('{id}/reject', 'reject')->middleware('permission:update_customers');
         Route::post('{id}/close', 'close')->middleware('permission:update_customers');
+        Route::delete('{id}', 'destroy')->middleware('permission:delete_customers');
         Route::put('{customerId}/documents/{documentId}', 'updateDocument')->middleware('permission:update_customers');
     });
 

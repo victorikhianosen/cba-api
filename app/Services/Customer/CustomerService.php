@@ -5,6 +5,7 @@ namespace App\Services\Customer;
 use App\Models\Customer;
 use App\Services\Audit\AuditService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CustomerService
@@ -20,17 +21,25 @@ class CustomerService
         return Customer::query()->with(['branch', 'accountOfficer'])->latest()->paginate($perPage)->withQueryString();
     }
 
+    private const RELATIONS = ['branch', 'accountOfficer', 'documents', 'addresses', 'nextOfKin', 'business', 'directors', 'signatories'];
+
     public function find(int $id): Customer
     {
-        return Customer::with(['branch', 'accountOfficer', 'documents'])->findOrFail($id);
+        return Customer::with(self::RELATIONS)->findOrFail($id);
     }
 
     public function create(array $data): Customer
     {
         $actor = auth()->user();
 
-        $documents = $data['documents'] ?? [];
-        unset($data['documents']);
+        $documents    = $data['documents'] ?? [];
+        $addresses    = $data['addresses'] ?? [];
+        $nextOfKin    = $data['next_of_kin'] ?? [];
+        $business     = $data['business'] ?? null;
+        $directors    = $data['directors'] ?? [];
+        $signatories  = $data['signatories'] ?? [];
+
+        unset($data['documents'], $data['addresses'], $data['next_of_kin'], $data['business'], $data['directors'], $data['signatories']);
 
         unset(
             $data['cif_number'], $data['status'],
@@ -49,26 +58,65 @@ class CustomerService
             }
         }
 
-        $customer = Customer::create($data);
+        $customer = DB::transaction(function () use ($data, $actor, $documents, $addresses, $nextOfKin, $business, $directors, $signatories) {
+            $customer = Customer::create($data);
 
-        foreach ($documents as $document) {
-            $customer->documents()->create([
-                'title'       => $document['title'] ?? null,
-                'name'        => $document['name'] ?? null,
-                'path'        => $document['path'] ?? null,
-                'type'        => $document['type'] ?? null,
-                'uploaded_by' => $actor?->id,
-                'status'      => 'pending',
-            ]);
-        }
+            foreach ($documents as $document) {
+                $customer->documents()->create([
+                    'title'       => $document['title'] ?? null,
+                    'name'        => $document['name'] ?? null,
+                    'path'        => $document['path'] ?? null,
+                    'type'        => $document['type'] ?? null,
+                    'uploaded_by' => $actor?->id,
+                    'status'      => 'pending',
+                ]);
+            }
 
-        $customer = $customer->fresh(['branch', 'accountOfficer', 'documents']);
+            foreach ($addresses as $address) {
+                $customer->addresses()->create($address);
+            }
+
+            foreach ($nextOfKin as $kin) {
+                $customer->nextOfKin()->create($kin);
+            }
+
+            if ($business) {
+                $customer->business()->create($business);
+            }
+
+            $createdDirectors = [];
+
+            foreach ($directors as $index => $director) {
+                $createdDirectors[$index] = $customer->directors()->create($director);
+            }
+
+            foreach ($signatories as $signatory) {
+                $directorIndex = $signatory['director_index'] ?? null;
+                unset($signatory['director_index']);
+
+                $signatory['director_id'] = $directorIndex !== null
+                    ? ($createdDirectors[$directorIndex]->id ?? null)
+                    : null;
+
+                $customer->signatories()->create($signatory);
+            }
+
+            return $customer;
+        });
+
+        $customer = $customer->fresh(self::RELATIONS);
 
         $this->audit->log(
             action: 'created',
             module: 'customers',
             auditable: $customer,
-            after: ['cif_number' => $customer->cif_number, 'phone' => $customer->phone, 'status' => $customer->status, 'documents_count' => count($documents)],
+            after: [
+                'cif_number'   => $customer->cif_number,
+                'phone'        => $customer->phone,
+                'status'       => $customer->status,
+                'customer_type' => $customer->customer_type,
+                'documents_count' => count($documents),
+            ],
             description: "Customer '{$this->displayName($customer)}' ({$customer->cif_number}) was onboarded by '{$actor?->username}' with ".count($documents)." document(s) and is pending approval.",
         );
 
@@ -210,7 +258,7 @@ class CustomerService
     private function displayName(Customer $customer): string
     {
         return $customer->customer_type === 'business'
-            ? (string) $customer->business_name
+            ? (string) ($customer->business?->business_name)
             : trim("{$customer->first_name} {$customer->last_name}");
     }
 
