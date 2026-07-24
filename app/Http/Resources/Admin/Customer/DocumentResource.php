@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Resources\Admin\Customer;
 
 use Illuminate\Http\Request;
@@ -14,7 +16,6 @@ class DocumentResource extends JsonResource
             'customer_id' => $this->customer_id,
             'account_id'  => $this->account_id,
             'title'       => $this->title,
-            'name'        => $this->name,
             'path'        => $this->path,
             'type'        => $this->type,
             'uploaded_by' => $this->uploaded_by,

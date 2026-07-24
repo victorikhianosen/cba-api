@@ -1,8 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Providers;
 
+use App\Models\Account;
 use App\Models\AccountProduct;
+use App\Models\GeneralLedger;
 use App\Models\InvestmentProduct;
 use App\Models\LoanProduct;
 use App\Models\User;
@@ -29,8 +33,10 @@ class AppServiceProvider extends ServiceProvider
             'account_product'    => AccountProduct::class,
             'loan_product'       => LoanProduct::class,
             'investment_product' => InvestmentProduct::class,
+            'account'            => Account::class,
+            'general_ledger'     => GeneralLedger::class,
         ]);
 
-        Gate::before(fn (User $user) => $user->hasRole('admin') ? true : null);
+        Gate::before(fn (User $user) => $user->hasRole(['admin', 'super_admin']) ? true : null);
     }
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
@@ -14,8 +16,8 @@ class Business extends Model
         return [
             'registration_date'  => 'date',
             'incorporation_date' => 'date',
-            'annual_turnover'    => 'decimal:2',
-            'monthly_turnover'   => 'decimal:2',
+            'annual_turnover'    => 'integer',
+            'monthly_turnover'   => 'integer',
         ];
     }
 

@@ -1,8 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services\AccountProduct;
 
-use App\Enums\AccountProductType;
+use App\Enums\Product\AccountProductType;
 use App\Models\AccountProduct;
 use App\Models\Currency;
 use App\Models\GeneralLedger;
@@ -233,14 +235,14 @@ class AccountProductService
             if ((int) $ledger->currency_id !== (int) $productCurrency->id) {
                 throw ValidationException::withMessages([
                     'general_ledgers' => [
-                        "Currency mismatch for ledger '{$ledger->name}'. Product currency is {$productCurrency->code} but ledger currency is " . ($ledger->currency_code ?? 'unset') . '.',
+                        "Currency mismatch for ledger '" . str_replace('_', ' ', $ledger->name) . "'. Product currency is {$productCurrency->code} but ledger currency is " . ($ledger->currency_code ?? 'unset') . '.',
                     ],
                 ]);
             }
 
             if (ProductToGlAccountMapping::where('general_ledger_id', $ledger->id)->exists()) {
                 throw ValidationException::withMessages([
-                    'general_ledgers' => ["General ledger '{$ledger->name}' is already mapped to another product."],
+                    'general_ledgers' => ["General ledger '" . str_replace('_', ' ', $ledger->name) . "' is already used by another product."],
                 ]);
             }
         }

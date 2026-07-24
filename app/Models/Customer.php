@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -91,5 +93,10 @@ class Customer extends Model
     public function signatories(): HasMany
     {
         return $this->hasMany(Signatory::class);
+    }
+
+    public function accounts(): HasMany
+    {
+        return $this->hasMany(Account::class);
     }
 }

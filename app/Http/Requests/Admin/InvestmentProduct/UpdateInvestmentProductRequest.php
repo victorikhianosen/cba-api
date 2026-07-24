@@ -1,7 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Requests\Admin\InvestmentProduct;
 
+use App\Rules\StrictInteger;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -33,8 +36,8 @@ class UpdateInvestmentProductRequest extends FormRequest
             'interest_compounding_period'     => ['nullable', Rule::in(['daily', 'weekly', 'monthly', 'quarterly', 'annually'])],
             'interest_posting_period'         => ['nullable', Rule::in(['daily', 'monthly', 'quarterly', 'bi_annually', 'annually'])],
             'interest_calculation_days_in_year' => ['nullable', Rule::in(['360', '365'])],
-            'min_required_opening_balance'    => ['nullable', 'numeric', 'min:0'],
-            'min_required_balance'            => ['nullable', 'numeric', 'min:0'],
+            'min_required_opening_balance'    => ['nullable', 'integer', new StrictInteger, 'min:0'],
+            'min_required_balance'            => ['nullable', 'integer', new StrictInteger, 'min:0'],
             'locking_period_frequency'        => ['nullable', 'integer', 'min:1'],
             'locking_period_frequency_type'   => ['nullable', Rule::in(['days', 'weeks', 'months', 'years'])],
 
@@ -44,8 +47,8 @@ class UpdateInvestmentProductRequest extends FormRequest
             'max_deposit_term_type'                 => ['nullable', Rule::in(['days', 'weeks', 'months', 'years'])],
             'in_multiples_of_deposit_term'          => ['nullable', 'integer', 'min:1'],
             'in_multiples_of_deposit_term_type'     => ['nullable', Rule::in(['days', 'weeks', 'months', 'years'])],
-            'min_deposit_amount'                    => ['nullable', 'numeric', 'min:0'],
-            'max_deposit_amount'                    => ['nullable', 'numeric', 'min:0', 'gte:min_deposit_amount'],
+            'min_deposit_amount'                    => ['nullable', 'integer', new StrictInteger, 'min:0'],
+            'max_deposit_amount'                    => ['nullable', 'integer', new StrictInteger, 'min:0', 'gte:min_deposit_amount'],
             'pre_closure_penal_applicable'          => ['nullable', 'boolean'],
             'pre_closure_penal_interest'            => ['nullable', 'numeric', 'min:0', 'required_if:pre_closure_penal_applicable,true'],
             'pre_closure_penal_interest_on_type'    => ['nullable', Rule::in(['whole_term', 'till_preclosure_date']), 'required_if:pre_closure_penal_applicable,true'],

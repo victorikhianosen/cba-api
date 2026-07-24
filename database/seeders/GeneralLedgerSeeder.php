@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Database\Seeders;
 
 use App\Models\Currency;
@@ -32,6 +34,14 @@ class GeneralLedgerSeeder extends Seeder
         ['Income From Interest', 'income', 'interest_income'],
         ['Losses Written Off', 'expense', 'suspense'],
         ['Escheat Liability', 'liability', 'payable'],
+
+        // Current account product roles (dedicated GLs — a GL can only be
+        // mapped to one product, so these are distinct from the savings ones)
+        ['Current Account Control', 'liability', 'savings_control'],
+        ['Interest On Current Account', 'expense', 'interest_expense'],
+        ['Current Account Income From Fees', 'income', 'fee_income'],
+        ['Current Account Income From Penalties', 'income', 'penalty_income'],
+        ['Current Account Transfers Suspense', 'liability', 'suspense'],
 
         // Common chart-of-accounts entries not tied to a specific product role
         ['Cash in Vault', 'asset', 'cash'],

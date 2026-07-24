@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -50,7 +52,7 @@ return new class extends Migration
             $table->text('address')->nullable();
 
 
-            $table->decimal('transaction_limit', 20, 2)->nullable();
+            $table->unsignedBigInteger('transaction_limit')->nullable();
 
             $table->enum('status', [
                 'active',

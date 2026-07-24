@@ -1,7 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
+use App\Http\Controllers\Admin\AccountController;
 use App\Http\Controllers\Admin\AccountOfficerController;
 use App\Http\Controllers\Admin\AccountProductController;
+use App\Http\Controllers\Admin\AccountTierController;
 use App\Http\Controllers\Admin\AuditTrailController;
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\BankController;
@@ -13,6 +17,7 @@ use App\Http\Controllers\Admin\GeneralLedgerController;
 use App\Http\Controllers\Admin\InvestmentProductController;
 use App\Http\Controllers\Admin\LoanProductController;
 use App\Http\Controllers\Admin\PermissionController;
+use App\Http\Controllers\Admin\PostingController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController;
 use Illuminate\Support\Facades\Route;
@@ -98,6 +103,13 @@ Route::middleware(['auth:user'])->group(function () {
         Route::post('{id}/status', 'updateStatus')->middleware('permission:update_account_products');
     });
 
+    Route::prefix('account-tiers')->controller(AccountTierController::class)->group(function () {
+        Route::get('/', 'index')->middleware('permission:view_account_tiers');
+        Route::post('/', 'store')->middleware('permission:create_account_tiers');
+        Route::get('{id}', 'show')->middleware('permission:view_account_tiers');
+        Route::put('{id}', 'update')->middleware('permission:update_account_tiers');
+    });
+
     Route::prefix('loan-products')->controller(LoanProductController::class)->group(function () {
         Route::get('/', 'index')->middleware('permission:view_loan_products');
         Route::post('/', 'store')->middleware('permission:create_loan_products');
@@ -127,7 +139,20 @@ Route::middleware(['auth:user'])->group(function () {
         Route::post('{id}/reject', 'reject')->middleware('permission:update_customers');
         Route::post('{id}/close', 'close')->middleware('permission:update_customers');
         Route::delete('{id}', 'destroy')->middleware('permission:delete_customers');
+        Route::post('{id}/documents', 'uploadDocuments')->middleware('permission:update_customers');
         Route::put('{customerId}/documents/{documentId}', 'updateDocument')->middleware('permission:update_customers');
+        Route::post('{id}/accounts', 'storeAccount')->middleware('permission:create_accounts');
+        Route::post('{id}/accounts/status', 'updateAccountsStatus')->middleware('permission:update_customers');
+        Route::post('{id}/toggle-internet-banking', 'toggleInternetBanking')->middleware('permission:update_customers');
+        Route::post('{id}/toggle-sms', 'toggleSms')->middleware('permission:update_customers');
+        Route::post('{id}/toggle-email', 'toggleEmail')->middleware('permission:update_customers');
+    });
+
+    Route::prefix('accounts')->controller(AccountController::class)->group(function () {
+        Route::get('{id}', 'show')->middleware('permission:view_accounts');
+        Route::post('{id}/status', 'updateStatus')->middleware('permission:update_accounts');
+        Route::post('{id}/toggle-pnd', 'togglePnd')->middleware('permission:update_accounts');
+        Route::post('{id}/toggle-pnc', 'togglePnc')->middleware('permission:update_accounts');
     });
 
     Route::prefix('general-ledgers')->controller(GeneralLedgerController::class)->group(function () {
@@ -137,6 +162,14 @@ Route::middleware(['auth:user'])->group(function () {
         Route::put('{id}', 'update')->middleware('permission:update_general_ledgers');
         Route::delete('{id}', 'destroy')->middleware('permission:delete_general_ledgers');
         Route::post('{id}/status', 'updateStatus')->middleware('permission:update_general_ledgers');
+    });
+
+    Route::prefix('postings')->controller(PostingController::class)->group(function () {
+        Route::get('/', 'index')->middleware('permission:view_postings');
+        Route::post('/', 'store')->middleware('permission:create_postings');
+        Route::get('{id}', 'show')->middleware('permission:view_postings');
+        Route::post('{id}/approve', 'approve')->middleware('permission:approve_postings');
+        Route::post('{id}/reject', 'reject')->middleware('permission:approve_postings');
     });
 
     Route::prefix('audit-trails')->controller(AuditTrailController::class)->group(function () {

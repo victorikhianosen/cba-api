@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -43,8 +45,8 @@ return new class extends Migration
             $table->string('business_email')->nullable();
             $table->string('website')->nullable();
 
-            $table->decimal('annual_turnover', 20, 2)->nullable();
-            $table->decimal('monthly_turnover', 20, 2)->nullable();
+            $table->unsignedBigInteger('annual_turnover')->nullable();
+            $table->unsignedBigInteger('monthly_turnover')->nullable();
 
             $table->unsignedInteger('number_of_employees')->nullable();
 

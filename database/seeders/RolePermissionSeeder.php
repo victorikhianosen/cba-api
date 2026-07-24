@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
@@ -20,8 +22,11 @@ class RolePermissionSeeder extends Seeder
         'view_banks', 'create_banks', 'update_banks', 'delete_banks',
         'view_currencies', 'create_currencies', 'update_currencies', 'delete_currencies',
         'view_customers', 'create_customers', 'update_customers', 'delete_customers',
+        'view_accounts', 'create_accounts', 'update_accounts',
         'view_account_officers', 'create_account_officers', 'update_account_officers', 'delete_account_officers',
+        'view_account_tiers', 'create_account_tiers', 'update_account_tiers',
         'view_general_ledgers', 'create_general_ledgers', 'update_general_ledgers', 'delete_general_ledgers',
+        'view_postings', 'create_postings', 'approve_postings',
         'view_account_products', 'create_account_products', 'update_account_products', 'delete_account_products', 'approve_account_products',
         'view_loan_products', 'create_loan_products', 'update_loan_products', 'delete_loan_products', 'approve_loan_products',
         'view_investment_products', 'create_investment_products', 'update_investment_products', 'delete_investment_products', 'approve_investment_products',
@@ -36,7 +41,13 @@ class RolePermissionSeeder extends Seeder
         );
 
         $admin = Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'user']);
-
         $admin->givePermissionTo($permissions);
+
+        // super_admin gets every permission that exists today (kept in sync
+        // via syncPermissions so re-running this seeder never leaves it
+        // behind); it also gets an unconditional Gate::before bypass in
+        // AppServiceProvider, so it never falls behind on future permissions.
+        $superAdmin = Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'user']);
+        $superAdmin->syncPermissions($permissions);
     }
 }

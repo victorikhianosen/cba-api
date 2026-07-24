@@ -1,7 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Requests\Admin\Customer;
 
+use App\Rules\StrictInteger;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreCustomerRequest extends FormRequest
@@ -20,9 +23,9 @@ class StoreCustomerRequest extends FormRequest
             'guardian_id'         => ['nullable', 'integer', 'exists:customers,id'],
 
             'title'          => ['nullable', 'string', 'max:20'],
-            'first_name'     => ['required_if:customer_type,individual,minor', 'nullable', 'string', 'max:255'],
+            'first_name'     => ['required_if:customer_type,individual,minor,business', 'nullable', 'string', 'max:255'],
             'middle_name'    => ['nullable', 'string', 'max:255'],
-            'last_name'      => ['required_if:customer_type,individual,minor', 'nullable', 'string', 'max:255'],
+            'last_name'      => ['required_if:customer_type,individual,minor,business', 'nullable', 'string', 'max:255'],
 
             'phone'    => ['required', 'string', 'max:20', 'unique:customers,phone'],
             'email'    => ['nullable', 'email', 'max:255', 'unique:customers,email'],
@@ -38,29 +41,19 @@ class StoreCustomerRequest extends FormRequest
 
             'occupation'      => ['nullable', 'string', 'max:255'],
             'working_status'  => ['nullable', 'string', 'max:100'],
-            'referral_code'   => ['nullable', 'string', 'max:50', 'unique:customers,referral_code'],
 
             'bvn'         => ['nullable', 'digits:11', 'unique:customers,bvn'],
             'nin_number'  => ['nullable', 'digits:11', 'unique:customers,nin_number'],
             'tin'         => ['nullable', 'string', 'max:50', 'unique:customers,tin'],
 
             'is_staff' => ['sometimes', 'boolean'],
-            'pep'      => ['sometimes', 'boolean'],
-
-            'enable_internet_bank'  => ['sometimes', 'boolean'],
-            'enable_sms'            => ['sometimes', 'boolean'],
-            'enable_email'          => ['sometimes', 'boolean'],
-            'enable_reset_password' => ['sometimes', 'boolean'],
-            'enable_panic_password' => ['sometimes', 'boolean'],
 
             'mother_maiden_name' => ['nullable', 'string', 'max:255'],
             'spouse_name'        => ['nullable', 'string', 'max:255'],
 
-            'documents'              => ['sometimes', 'nullable', 'array'],
-            'documents.*.title'      => ['nullable', 'string', 'max:255'],
-            'documents.*.name'       => ['nullable', 'string', 'max:255'],
-            'documents.*.path'       => ['nullable', 'string', 'max:500'],
-            'documents.*.type'       => ['nullable', 'string', 'max:100'],
+           
+            'profile_picture' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'utility_bill'    => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
 
             // Addresses — shared by individual and business customers.
             'addresses'                  => ['sometimes', 'nullable', 'array'],
@@ -91,7 +84,7 @@ class StoreCustomerRequest extends FormRequest
 
             // Business — business customers only.
             'business'                        => ['required_if:customer_type,business', 'prohibited_unless:customer_type,business', 'array'],
-            'business.business_name'          => ['required', 'string', 'max:255'],
+            'business.business_name'          => ['required_if:customer_type,business', 'string', 'max:255'],
             'business.trading_name'           => ['nullable', 'string', 'max:255'],
             'business.business_type'          => ['nullable', 'string', 'max:100'],
             'business.registration_number'    => ['nullable', 'string', 'max:100', 'unique:businesses,registration_number'],
@@ -104,12 +97,12 @@ class StoreCustomerRequest extends FormRequest
             'business.business_phone'         => ['nullable', 'string', 'max:20'],
             'business.business_email'         => ['nullable', 'email', 'max:255'],
             'business.website'                => ['nullable', 'string', 'max:255'],
-            'business.annual_turnover'        => ['nullable', 'numeric', 'min:0'],
-            'business.monthly_turnover'       => ['nullable', 'numeric', 'min:0'],
+            'business.annual_turnover'        => ['nullable', 'integer', new StrictInteger, 'min:0'],
+            'business.monthly_turnover'       => ['nullable', 'integer', new StrictInteger, 'min:0'],
             'business.number_of_employees'    => ['nullable', 'integer', 'min:0'],
             'business.source_of_funds'        => ['nullable', 'string', 'max:255'],
 
-            // Directors — business customers only.
+            // Directors
             'directors'                      => ['required_if:customer_type,business', 'prohibited_unless:customer_type,business', 'array', 'min:1'],
             'directors.*.title'              => ['nullable', 'string', 'max:20'],
             'directors.*.first_name'         => ['required', 'string', 'max:255'],
@@ -130,13 +123,10 @@ class StoreCustomerRequest extends FormRequest
             'directors.*.tin'                => ['nullable', 'string', 'max:50'],
             'directors.*.id_type'            => ['nullable', 'string', 'max:50'],
             'directors.*.id_number'          => ['nullable', 'string', 'max:100'],
-            'directors.*.passport_photo'     => ['nullable', 'string', 'max:500'],
-            'directors.*.signature'          => ['nullable', 'string', 'max:500'],
+            'directors.*.passport_photo'     => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'directors.*.is_primary'         => ['sometimes', 'boolean'],
 
-            // Signatories — business customers only. director_index optionally
-            // links a signatory to a director submitted in the same request,
-            // by its 0-based position in the `directors` array above.
+            // Signatories
             'signatories'                       => ['required_if:customer_type,business', 'prohibited_unless:customer_type,business', 'array', 'min:1'],
             'signatories.*.director_index'      => ['nullable', 'integer', 'min:0', 'lt:directors_count'],
             'signatories.*.title'               => ['nullable', 'string', 'max:20'],
@@ -146,14 +136,14 @@ class StoreCustomerRequest extends FormRequest
             'signatories.*.position'            => ['required', 'string', 'max:100'],
             'signatories.*.phone'               => ['required', 'string', 'max:20'],
             'signatories.*.email'               => ['nullable', 'email', 'max:255'],
-            'signatories.*.signature'           => ['nullable', 'string', 'max:500'],
-            'signatories.*.passport_photo'      => ['nullable', 'string', 'max:500'],
+            'signatories.*.signature'           => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'signatories.*.passport_photo'      => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'signatories.*.gender'              => ['nullable', 'in:male,female'],
             'signatories.*.dob'                 => ['nullable', 'date', 'before:today'],
             'signatories.*.bvn'                 => ['nullable', 'digits:11'],
             'signatories.*.nin'                 => ['nullable', 'digits:11'],
             'signatories.*.address'             => ['nullable', 'string'],
-            'signatories.*.transaction_limit'   => ['nullable', 'numeric', 'min:0'],
+            'signatories.*.transaction_limit'   => ['nullable', 'integer', new StrictInteger, 'min:0'],
         ];
     }
 

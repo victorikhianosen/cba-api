@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -27,9 +29,9 @@ return new class extends Migration
             $table->enum('interest_calculation_period_type', ['daily', 'same_as_repayment_period'])->nullable();
             $table->enum('interest_calculation_days_in_year', ['360', '365'])->default('365');
 
-            $table->decimal('min_principal_amount', 19, 6)->nullable();
-            $table->decimal('max_principal_amount', 19, 6)->nullable();
-            $table->decimal('default_principal_amount', 19, 6)->nullable();
+            $table->unsignedBigInteger('min_principal_amount')->nullable();
+            $table->unsignedBigInteger('max_principal_amount')->nullable();
+            $table->unsignedBigInteger('default_principal_amount')->nullable();
 
             $table->unsignedInteger('repayment_every')->nullable();
             $table->enum('repayment_frequency_type', ['days', 'weeks', 'months'])->nullable();
@@ -42,7 +44,7 @@ return new class extends Migration
             $table->unsignedInteger('grace_on_interest_periods')->default(0);
             $table->unsignedInteger('grace_interest_free_periods')->default(0);
             $table->unsignedInteger('grace_on_arrears_ageing')->default(0);
-            $table->decimal('arrears_tolerance_amount', 19, 6)->default(0);
+            $table->unsignedBigInteger('arrears_tolerance_amount')->default(0);
             $table->unsignedInteger('overdue_days_for_npa')->nullable();
             $table->enum('days_in_month_type', ['actual', 'thirty'])->nullable();
 

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -34,8 +36,8 @@ return new class extends Migration
             ])->nullable();
             $table->enum('interest_calculation_days_in_year', ['360', '365'])->default('365');
 
-            $table->decimal('min_required_opening_balance', 19, 6)->default(0);
-            $table->decimal('min_required_balance', 19, 6)->default(0);
+            $table->unsignedBigInteger('min_required_opening_balance')->default(0);
+            $table->unsignedBigInteger('min_required_balance')->default(0);
 
             $table->unsignedInteger('locking_period_frequency')->nullable();
             $table->enum('locking_period_frequency_type', [
@@ -49,8 +51,8 @@ return new class extends Migration
             $table->unsignedInteger('in_multiples_of_deposit_term')->nullable();
             $table->enum('in_multiples_of_deposit_term_type', ['days', 'weeks', 'months', 'years'])->nullable();
 
-            $table->decimal('min_deposit_amount', 19, 6)->nullable();
-            $table->decimal('max_deposit_amount', 19, 6)->nullable();
+            $table->unsignedBigInteger('min_deposit_amount')->nullable();
+            $table->unsignedBigInteger('max_deposit_amount')->nullable();
 
             $table->boolean('pre_closure_penal_applicable')->default(false);
             $table->decimal('pre_closure_penal_interest', 19, 6)->nullable();

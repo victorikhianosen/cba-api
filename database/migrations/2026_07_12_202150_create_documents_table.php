@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -20,7 +22,6 @@ return new class extends Migration
             $table->foreignId('account_id')->nullable();
 
             $table->string('title')->nullable();
-            $table->string('name')->nullable();
             $table->string('path')->nullable();
             $table->string('type')->nullable();
 

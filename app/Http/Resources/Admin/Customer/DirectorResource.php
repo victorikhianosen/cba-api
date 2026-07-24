@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Resources\Admin\Customer;
 
 use Illuminate\Http\Request;
@@ -32,7 +34,6 @@ class DirectorResource extends JsonResource
             'id_type'           => $this->id_type,
             'id_number'         => $this->id_number,
             'passport_photo'    => $this->passport_photo,
-            'signature'         => $this->signature,
             'is_primary'        => $this->is_primary,
             'status'            => $this->status,
             'remarks'           => $this->remarks,

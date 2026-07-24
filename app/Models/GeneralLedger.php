@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
@@ -31,5 +33,10 @@ class GeneralLedger extends Model
     public function children(): HasMany
     {
         return $this->hasMany(GeneralLedger::class, 'parent_id');
+    }
+
+    public function journalEntries(): HasMany
+    {
+        return $this->hasMany(JournalEntry::class);
     }
 }

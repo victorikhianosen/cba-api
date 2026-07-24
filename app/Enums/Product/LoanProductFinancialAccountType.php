@@ -1,6 +1,8 @@
 <?php
 
-namespace App\Enums;
+declare(strict_types=1);
+
+namespace App\Enums\Product;
 
 /**
  * GL role vocabulary for loan products. Mirrors Fineract's CashAccountsForLoan

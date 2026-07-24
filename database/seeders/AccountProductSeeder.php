@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Database\Seeders;
 
 use App\Enums\LoanProductFinancialAccountType;
@@ -19,6 +21,7 @@ class AccountProductSeeder extends Seeder
         $currency = Currency::where('code', 'NGN')->firstOrFail();
 
         $this->seedSavingsProduct($currency);
+        $this->seedCurrentProduct($currency);
         $this->seedLoanProduct($currency);
         $this->seedInvestmentProduct($currency);
     }
@@ -51,6 +54,32 @@ class AccountProductSeeder extends Seeder
                 'TRANSFERS_SUSPENSE'    => 'transfers_suspense',
             ]),
         ]);
+    }
+
+    private function seedCurrentProduct(Currency $currency): void
+    {
+        if (AccountProduct::where('name', 'naira_current_account')->exists()) {
+            return;
+        }
+
+        $accountProduct = app(AccountProductService::class)->create([
+            'name'                         => 'naira_current_account',
+            'product_type'                 => 'current',
+            'description'                  => 'Standard Naira current account product, auto-assigned to business customers on approval.',
+            'currency_id'                  => $currency->id,
+            'interest_rate'                => 0,
+            'min_required_opening_balance' => 5000,
+            'min_required_balance'         => 0,
+            'general_ledgers'              => $this->mappingsFor(AccountProductType::required(), [
+                'ACCOUNT_CONTROL'       => 'current_account_control',
+                'INTEREST_ON_ACCOUNT'   => 'interest_on_current_account',
+                'INCOME_FROM_FEES'      => 'current_account_income_from_fees',
+                'INCOME_FROM_PENALTIES' => 'current_account_income_from_penalties',
+                'TRANSFERS_SUSPENSE'    => 'current_account_transfers_suspense',
+            ]),
+        ]);
+
+        app(AccountProductService::class)->approve($accountProduct);
     }
 
     private function seedLoanProduct(Currency $currency): void

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Requests\Admin\Customer;
 
 use Illuminate\Foundation\Http\FormRequest;
@@ -15,7 +17,6 @@ class UpdateDocumentRequest extends FormRequest
     {
         return [
             'title'    => ['sometimes', 'nullable', 'string', 'max:255'],
-            'name'     => ['sometimes', 'nullable', 'string', 'max:255'],
             'type'     => ['sometimes', 'nullable', 'string', 'max:100'],
             'status'   => ['sometimes', 'in:pending,verified,approved,rejected'],
             'comments' => ['sometimes', 'nullable', 'string'],

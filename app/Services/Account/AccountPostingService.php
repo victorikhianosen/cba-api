@@ -1,0 +1,151 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services\Account;
+
+use App\Enums\Account\AccountStatus;
+use App\Enums\Product\AccountProductType;
+use App\Enums\Transaction\DebitCredit;
+use App\Enums\Transaction\TransactionStatus;
+use App\Models\Account;
+use App\Models\Transaction;
+use App\Services\GeneralLedger\GeneralLedgerPostingService;
+use Illuminate\Validation\ValidationException;
+
+/**
+ * The single place allowed to mutate account_balance/available_balance and
+ * write the matching transactions row — every channel that moves money in
+ * or out of an account (admin postings today, mobile/internet banking
+ * later) must go through debit()/credit() here instead of touching the
+ * Account model's balance columns directly. Callers are expected to invoke
+ * these from inside their own DB::transaction() so the lockForUpdate()
+ * below actually holds the row lock until commit, same precondition as
+ * AccountService::generateUniqueAccountNumber().
+ *
+ * Every account leg also mirrors the same debit/credit into that account's
+ * product ACCOUNT_CONTROL general ledger — accounts are subledgers, not
+ * standalone books, so a customer-only entry with no GL side would leave
+ * the GL trial balance out of sync with the sum of account balances.
+ */
+class AccountPostingService
+{
+    public function __construct(
+        private GeneralLedgerPostingService $glLedger,
+    ) {}
+
+    public function debit(Account $account, array $leg): Transaction
+    {
+        return $this->post($account, DebitCredit::DEBIT, $leg);
+    }
+
+    public function credit(Account $account, array $leg): Transaction
+    {
+        return $this->post($account, DebitCredit::CREDIT, $leg);
+    }
+
+    /**
+     * Whether a debit of $amount would fit within the account's available
+     * balance plus its overdraft allowance, if any. Used to pre-check a
+     * posting before it's even created — the same insufficient-funds rule
+     * enforced again (against the locked row) inside post() at approval time.
+     */
+    public function hasSufficientFunds(Account $account, string $amount): bool
+    {
+        $overdraftLimit = $account->accountProduct?->allow_overdraft
+            ? (string) $account->accountProduct->overdraft_limit
+            : '0';
+
+        return bccomp($amount, bcadd((string) $account->available_balance, $overdraftLimit, 4), 4) <= 0;
+    }
+
+    private function post(Account $account, DebitCredit $debitCredit, array $leg): Transaction
+    {
+        /** @var Account $account */
+        $account = Account::with('accountProduct.generalLedgerMappings.generalLedger')
+            ->whereKey($account->id)
+            ->lockForUpdate()
+            ->firstOrFail();
+
+        $controlGeneralLedger = $account->accountProduct
+            ?->generalLedgerMappings
+            ->firstWhere('financial_account_type', AccountProductType::ACCOUNT_CONTROL->value)
+            ?->generalLedger;
+
+        if (! $controlGeneralLedger) {
+            throw ValidationException::withMessages([
+                'account_id' => ["Account '{$account->account_number}' has no ACCOUNT_CONTROL general ledger mapped — cannot post."],
+            ]);
+        }
+
+        if ($account->status !== AccountStatus::ACTIVE->value) {
+            throw ValidationException::withMessages([
+                'account_id' => ["Account '{$account->account_number}' is not active (status: {$account->status})."],
+            ]);
+        }
+
+        if ((int) $account->currency_id !== (int) $leg['currency_id']) {
+            throw ValidationException::withMessages([
+                'currency_id' => ["Account '{$account->account_number}' currency does not match the posting currency."],
+            ]);
+        }
+
+        $amount = (string) $leg['amount'];
+
+        if ($debitCredit === DebitCredit::DEBIT) {
+            if ($account->pnd) {
+                throw ValidationException::withMessages([
+                    'account_id' => ["Account '{$account->account_number}' has a post-no-debit restriction."],
+                ]);
+            }
+
+            if (! $this->hasSufficientFunds($account, $amount)) {
+                throw ValidationException::withMessages([
+                    'amount' => ["Account '{$account->account_number}' has insufficient funds for this debit."],
+                ]);
+            }
+        } elseif ($account->pnc) {
+            throw ValidationException::withMessages([
+                'account_id' => ["Account '{$account->account_number}' has a post-no-credit restriction."],
+            ]);
+        }
+
+        $balanceBefore = (string) $account->account_balance;
+        $balanceAfter  = $debitCredit === DebitCredit::DEBIT
+            ? bcsub($balanceBefore, $amount, 4)
+            : bcadd($balanceBefore, $amount, 4);
+
+        $account->update([
+            'account_balance'     => $balanceAfter,
+            'available_balance'   => bcsub($balanceAfter, (string) $account->lien_balance, 4),
+            'last_transaction_at' => now(),
+        ]);
+
+        $transaction = Transaction::create([
+            'financial_transaction_id' => $leg['financial_transaction_id'],
+            'entry_group_id'           => $leg['entry_group_id'],
+            'account_id'               => $account->id,
+            'customer_id'              => $account->customer_id,
+            'posting_type'             => $leg['posting_type'] ?? null,
+            'debit_credit'             => $debitCredit->value,
+            'amount'                   => $amount,
+            'balance_before'           => $balanceBefore,
+            'balance_after'            => $balanceAfter,
+            'currency_id'              => $leg['currency_id'],
+            'value_date'               => $leg['value_date'] ?? now()->toDateString(),
+            'posting_date'             => $leg['posting_date'] ?? now()->toDateString(),
+            'status'                   => TransactionStatus::COMPLETED->value,
+            'narration'                => $leg['narration'] ?? null,
+            'metadata'                 => $leg['metadata'] ?? null,
+            'created_by'               => $leg['created_by'] ?? null,
+        ]);
+
+        // Mirror the same debit/credit into the account's control GL so the
+        // GL trial balance stays reconciled with the account subledger.
+        $debitCredit === DebitCredit::DEBIT
+            ? $this->glLedger->debit($controlGeneralLedger, $leg)
+            : $this->glLedger->credit($controlGeneralLedger, $leg);
+
+        return $transaction;
+    }
+}

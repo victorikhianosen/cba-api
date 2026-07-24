@@ -1,7 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Requests\Admin\LoanProduct;
 
+use App\Rules\StrictInteger;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -30,9 +33,9 @@ class UpdateLoanProductRequest extends FormRequest
             'description'   => ['nullable', 'string'],
             'interest_rate' => ['nullable', 'numeric', 'min:0'],
 
-            'min_principal_amount'                 => ['nullable', 'numeric', 'min:0'],
-            'max_principal_amount'                 => ['nullable', 'numeric', 'min:0', 'gte:min_principal_amount'],
-            'default_principal_amount'             => ['nullable', 'numeric', 'min:0'],
+            'min_principal_amount'                 => ['nullable', 'integer', new StrictInteger, 'min:0'],
+            'max_principal_amount'                 => ['nullable', 'integer', new StrictInteger, 'min:0', 'gte:min_principal_amount'],
+            'default_principal_amount'             => ['nullable', 'integer', new StrictInteger, 'min:0'],
             'min_nominal_interest_rate_per_period' => ['nullable', 'numeric', 'min:0'],
             'max_nominal_interest_rate_per_period' => ['nullable', 'numeric', 'min:0', 'gte:min_nominal_interest_rate_per_period'],
             'interest_rate_frequency_type'          => ['nullable', Rule::in(['per_day', 'per_week', 'per_month', 'per_year'])],
@@ -48,7 +51,7 @@ class UpdateLoanProductRequest extends FormRequest
             'grace_on_interest_periods'             => ['nullable', 'integer', 'min:0'],
             'grace_interest_free_periods'           => ['nullable', 'integer', 'min:0'],
             'grace_on_arrears_ageing'               => ['nullable', 'integer', 'min:0'],
-            'arrears_tolerance_amount'              => ['nullable', 'numeric', 'min:0'],
+            'arrears_tolerance_amount'              => ['nullable', 'integer', new StrictInteger, 'min:0'],
             'overdue_days_for_npa'                 => ['nullable', 'integer', 'min:0'],
             'days_in_month_type'                   => ['nullable', Rule::in(['actual', 'thirty'])],
             'interest_calculation_days_in_year'    => ['nullable', Rule::in(['360', '365'])],

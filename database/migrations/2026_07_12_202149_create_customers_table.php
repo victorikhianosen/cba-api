@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -41,6 +43,7 @@ return new class extends Migration
             $table->string('first_name')->nullable();
             $table->string('middle_name')->nullable();
             $table->string('last_name')->nullable();
+            $table->string('business_name')->nullable();
 
 
             $table->string('phone')->unique();
@@ -69,10 +72,10 @@ return new class extends Migration
             $table->boolean('is_staff')->default(false);
             $table->boolean('pep')->default(false);
 
-            $table->boolean('enable_internet_bank')->default(false);
+            $table->boolean('enable_internet_bank')->default(true);
             $table->boolean('enable_sms')->default(true);
             $table->boolean('enable_email')->default(true);
-            $table->boolean('enable_reset_password')->default(false);
+            $table->boolean('enable_reset_password')->default(true);
             $table->boolean('enable_panic_password')->default(false);
 
             $table->boolean('id_verified')->default(false);

@@ -1,21 +1,29 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Customer\CloseCustomerRequest;
 use App\Http\Requests\Admin\Customer\RejectCustomerRequest;
+use App\Http\Requests\Admin\Customer\StoreCustomerAccountRequest;
 use App\Http\Requests\Admin\Customer\StoreCustomerRequest;
+use App\Http\Requests\Admin\Customer\UpdateCustomerAccountsStatusRequest;
 use App\Http\Requests\Admin\Customer\UpdateCustomerRequest;
 use App\Http\Requests\Admin\Customer\UpdateDocumentRequest;
+use App\Http\Requests\Admin\Customer\UploadDocumentsRequest;
+use App\Http\Resources\Admin\Account\AccountResource;
 use App\Http\Resources\Admin\Customer\CustomerResource;
 use App\Http\Resources\Admin\Customer\DocumentResource;
+use App\Services\Account\AccountService;
 use App\Services\Customer\CustomerService;
 use App\Services\Customer\DocumentService;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CustomerController extends Controller
@@ -25,6 +33,7 @@ class CustomerController extends Controller
     public function __construct(
         private CustomerService $customers,
         private DocumentService $documents,
+        private AccountService $accounts,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -117,8 +126,8 @@ class CustomerController extends Controller
             $customer = $this->customers->approve($customer);
 
             return $this->success(
-                message: 'Customer approved successfully.',
-                data: new CustomerResource($customer),
+                message: 'Customer approved successfully.'
+                // data: new CustomerResource($customer),
             );
         } catch (ModelNotFoundException $e) {
             return $this->error(
@@ -255,6 +264,40 @@ class CustomerController extends Controller
         }
     }
 
+    /**
+     * Accepts one or more files under any field name (multipart form-data) —
+     * each field name becomes that document's type/title and the file is
+     * stored to the s3 (MinIO) disk.
+     */
+    public function uploadDocuments(UploadDocumentsRequest $request, int $id): JsonResponse
+    {
+        try {
+            $customer  = $this->customers->find($id);
+            $documents = $this->documents->upload($customer, $request->allFiles());
+
+            return $this->success(
+                message: 'Document(s) uploaded successfully.',
+                data: DocumentResource::collection($documents),
+                responseCode: '000',
+                statusCode: 201,
+            );
+        } catch (ModelNotFoundException $e) {
+            return $this->error(
+                message: 'The requested customer was not found.',
+                responseCode: '404',
+                statusCode: 404,
+            );
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->error(
+                message: 'We are unable to process your request please try again.',
+                responseCode: '500',
+                statusCode: 500,
+            );
+        }
+    }
+
     public function updateDocument(UpdateDocumentRequest $request, int $customerId, int $documentId): JsonResponse
     {
         try {
@@ -269,6 +312,166 @@ class CustomerController extends Controller
         } catch (ModelNotFoundException $e) {
             return $this->error(
                 message: 'The requested customer or document was not found.',
+                responseCode: '404',
+                statusCode: 404,
+            );
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->error(
+                message: 'We are unable to process your request please try again.',
+                responseCode: '500',
+                statusCode: 500,
+            );
+        }
+    }
+
+    /**
+     * Lets an already onboarded customer open an additional account, given
+     * only an account product and the desired type (savings/current) — the
+     * whole operation happens in one transaction, so a failure rolls back
+     * cleanly and never leaves a half-created account behind.
+     */
+    public function storeAccount(StoreCustomerAccountRequest $request, int $id): JsonResponse
+    {
+        try {
+            $customer = $this->customers->find($id);
+            $account  = $this->accounts->openAccountForCustomer($customer, $request->validated());
+
+            return $this->success(
+                message: 'Account opened successfully.',
+                data: new AccountResource($account),
+                responseCode: '000',
+                statusCode: 201,
+            );
+        } catch (ModelNotFoundException $e) {
+            return $this->error(
+                message: 'The requested customer or account product was not found.',
+                responseCode: '404',
+                statusCode: 404,
+            );
+        } catch (ValidationException $e) {
+            return $this->error(
+                message: $e->getMessage(),
+                responseCode: '101',
+                statusCode: 422,
+                errors: $e->errors(),
+            );
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->error(
+                message: 'We are unable to process your request please try again.',
+                responseCode: '500',
+                statusCode: 500,
+            );
+        }
+    }
+
+    /**
+     * Cascades a status change to every account this customer owns — only
+     * the accounts are affected, the customer record itself is untouched.
+     */
+    public function updateAccountsStatus(UpdateCustomerAccountsStatusRequest $request, int $id): JsonResponse
+    {
+        try {
+            $customer = $this->customers->find($id);
+            $status   = $request->validated()['status'];
+
+            $accounts = DB::transaction(function () use ($customer, $status) {
+                $this->customers->updateStatus($customer, $status);
+
+                return $this->accounts->updateStatusForCustomer($customer, $status);
+            });
+
+            return $this->success(
+                message: "Account '{$status}' successfully.",
+                data: AccountResource::collection($accounts),
+            );
+        } catch (ModelNotFoundException $e) {
+            return $this->error(
+                message: 'The requested customer was not found.',
+                responseCode: '404',
+                statusCode: 404,
+            );
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->error(
+                message: 'We are unable to process your request please try again.',
+                responseCode: '500',
+                statusCode: 500,
+            );
+        }
+    }
+
+    public function toggleInternetBanking(int $id): JsonResponse
+    {
+        try {
+            $customer = $this->customers->find($id);
+            $customer = $this->customers->toggleInternetBanking($customer);
+
+            return $this->success(
+                message: 'Internet banking access ' . ($customer->enable_internet_bank ? 'enabled' : 'disabled') . ' successfully.',
+                // data: new CustomerResource($customer),
+            );
+        } catch (ModelNotFoundException $e) {
+            return $this->error(
+                message: 'The requested customer was not found.',
+                responseCode: '404',
+                statusCode: 404,
+            );
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->error(
+                message: 'We are unable to process your request please try again.',
+                responseCode: '500',
+                statusCode: 500,
+            );
+        }
+    }
+
+    public function toggleSms(int $id): JsonResponse
+    {
+        try {
+            $customer = $this->customers->find($id);
+            $customer = $this->customers->toggleSms($customer);
+
+            return $this->success(
+                message: 'SMS notifications ' . ($customer->enable_sms ? 'enabled' : 'disabled') . ' successfully.',
+                // data: new CustomerResource($customer),
+            );
+        } catch (ModelNotFoundException $e) {
+            return $this->error(
+                message: 'The requested customer was not found.',
+                responseCode: '404',
+                statusCode: 404,
+            );
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->error(
+                message: 'We are unable to process your request please try again.',
+                responseCode: '500',
+                statusCode: 500,
+            );
+        }
+    }
+
+    public function toggleEmail(int $id): JsonResponse
+    {
+        try {
+            $customer = $this->customers->find($id);
+            $customer = $this->customers->toggleEmail($customer);
+
+            return $this->success(
+                message: 'Email notifications ' . ($customer->enable_email ? 'enabled' : 'disabled') . ' successfully.',
+                // data: new CustomerResource($customer),
+            );
+        } catch (ModelNotFoundException $e) {
+            return $this->error(
+                message: 'The requested customer was not found.',
                 responseCode: '404',
                 statusCode: 404,
             );

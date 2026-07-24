@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
@@ -16,10 +18,10 @@ class LoanProduct extends Model
             'interest_rate'                        => 'decimal:6',
             'min_nominal_interest_rate_per_period'  => 'decimal:6',
             'max_nominal_interest_rate_per_period'  => 'decimal:6',
-            'min_principal_amount'                  => 'decimal:6',
-            'max_principal_amount'                  => 'decimal:6',
-            'default_principal_amount'              => 'decimal:6',
-            'arrears_tolerance_amount'               => 'decimal:6',
+            'min_principal_amount'                  => 'integer',
+            'max_principal_amount'                  => 'integer',
+            'default_principal_amount'              => 'integer',
+            'arrears_tolerance_amount'               => 'integer',
             'approved_at'                            => 'datetime',
         ];
     }

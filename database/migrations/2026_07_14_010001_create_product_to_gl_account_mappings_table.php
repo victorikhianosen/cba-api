@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -18,7 +20,7 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('product_id');
             $table->string('product_type');
-            $table->foreignId('general_ledger_id')->constrained('general_ledgers')->cascadeOnDelete();
+            $table->foreignId('general_ledger_id')->unique()->constrained('general_ledgers')->cascadeOnDelete();
             $table->smallInteger('financial_account_type');
             $table->string('financial_account_type_name');
             $table->timestamps();

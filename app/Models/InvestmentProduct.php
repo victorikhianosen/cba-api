@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
@@ -14,10 +16,10 @@ class InvestmentProduct extends Model
     {
         return [
             'interest_rate'                => 'decimal:6',
-            'min_required_opening_balance'  => 'decimal:6',
-            'min_required_balance'          => 'decimal:6',
-            'min_deposit_amount'            => 'decimal:6',
-            'max_deposit_amount'            => 'decimal:6',
+            'min_required_opening_balance'  => 'integer',
+            'min_required_balance'          => 'integer',
+            'min_deposit_amount'            => 'integer',
+            'max_deposit_amount'            => 'integer',
             'pre_closure_penal_applicable'  => 'boolean',
             'pre_closure_penal_interest'    => 'decimal:6',
             'approved_at'                  => 'datetime',

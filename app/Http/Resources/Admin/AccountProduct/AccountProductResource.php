@@ -1,8 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Resources\Admin\AccountProduct;
 
-use App\Enums\AccountProductType;
+use App\Enums\Product\AccountProductType;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 

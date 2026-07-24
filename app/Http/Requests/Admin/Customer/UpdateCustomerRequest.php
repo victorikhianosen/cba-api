@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Requests\Admin\Customer;
 
 use Illuminate\Foundation\Http\FormRequest;
@@ -26,6 +28,7 @@ class UpdateCustomerRequest extends FormRequest
             'first_name'    => ['sometimes', 'nullable', 'string', 'max:255'],
             'middle_name'   => ['sometimes', 'nullable', 'string', 'max:255'],
             'last_name'     => ['sometimes', 'nullable', 'string', 'max:255'],
+            'business_name' => ['sometimes', 'nullable', 'string', 'max:255'],
 
             'phone'    => ['sometimes', 'string', 'max:20', Rule::unique('customers', 'phone')->ignore($customerId)],
             'email'    => ['sometimes', 'nullable', 'email', 'max:255', Rule::unique('customers', 'email')->ignore($customerId)],
@@ -37,11 +40,11 @@ class UpdateCustomerRequest extends FormRequest
 
             'marital_status' => ['sometimes', 'nullable', 'in:single,married,divorced,widowed'],
             'gender'         => ['sometimes', 'nullable', 'in:male,female,other'],
+            'sex'            => ['sometimes', 'nullable', 'string', 'max:20'],
             'dob'            => ['sometimes', 'nullable', 'date', 'before:today'],
 
             'occupation'     => ['sometimes', 'nullable', 'string', 'max:255'],
             'working_status' => ['sometimes', 'nullable', 'string', 'max:100'],
-            'referral_code'  => ['sometimes', 'nullable', 'string', 'max:50', Rule::unique('customers', 'referral_code')->ignore($customerId)],
 
             'bvn'        => ['sometimes', 'nullable', 'digits:11', Rule::unique('customers', 'bvn')->ignore($customerId)],
             'nin_number' => ['sometimes', 'nullable', 'digits:11', Rule::unique('customers', 'nin_number')->ignore($customerId)],
