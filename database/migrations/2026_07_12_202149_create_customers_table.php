@@ -30,13 +30,21 @@ return new class extends Migration
                 ->nullable()
                 ->constrained('account_officers')
                 ->nullOnDelete();
-
-            $table->string('customer_type')->default('individual');
-
             $table->foreignId('guardian_id')
                 ->nullable()
                 ->constrained('customers')
                 ->nullOnDelete();
+
+            $table->string('customer_type')->default('individual');
+
+            $table->string('legal_form')->nullable();
+
+            $table->string('ownership_type')->default('single');
+
+            $table->string('industry')->nullable();
+            $table->string('website')->nullable();
+
+
 
             $table->string('title')->nullable();
 
@@ -66,8 +74,15 @@ return new class extends Migration
             $table->string('status')->default('pending');
 
             $table->string('bvn')->nullable()->unique();
+
+            $table->string('otp')->nullable();
+            $table->boolean('otp_verified')->default(false);
+            $table->string('device_token')->nullable();
+            $table->string('device_id')->nullable();
+
             $table->string('nin_number')->nullable()->unique();
             $table->string('tin')->nullable()->unique();
+            $table->string('rc_number')->nullable()->unique();
 
             $table->boolean('is_staff')->default(false);
             $table->boolean('pep')->default(false);

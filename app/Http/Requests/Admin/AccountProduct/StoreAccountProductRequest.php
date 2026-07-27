@@ -4,17 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Admin\AccountProduct;
 
+use App\Enums\Product\AccountProduct;
 use App\Enums\Product\AccountProductType;
-use App\Models\AccountProduct;
 use App\Rules\StrictInteger;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-/**
- * Field names mirror Fineract's SavingProductAccountingParams
- * (fineract-core/.../accounting/common/AccountingConstants.java) for
- * cash-based savings/deposit accounting.
- */
+// Field names mirror Fineract's SavingProductAccountingParams for cash-based savings/deposit accounting.
 class StoreAccountProductRequest extends FormRequest
 {
     public function authorize(): bool
@@ -29,13 +25,19 @@ class StoreAccountProductRequest extends FormRequest
                 'name' => strtolower(str_replace(' ', '_', trim($this->name))),
             ]);
         }
+
+        if ($this->filled('interest_calculation_days_in_year')) {
+            $this->merge([
+                'interest_calculation_days_in_year' => (string) $this->interest_calculation_days_in_year,
+            ]);
+        }
     }
 
     public function rules(): array
     {
         return [
             'name'                            => ['required', 'string', 'max:255', 'unique:account_products,name'],
-            'product_type'                    => ['required', 'string', Rule::in(AccountProduct::PRODUCT_TYPES)],
+            'product_type'                    => ['required', 'string', Rule::in(AccountProduct::values())],
             'description'                     => ['nullable', 'string'],
             'currency_id'                     => ['required', 'integer', 'exists:currencies,id'],
             'interest_rate'                   => ['nullable', 'numeric', 'min:0'],

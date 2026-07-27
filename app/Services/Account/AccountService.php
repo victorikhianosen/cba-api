@@ -4,36 +4,33 @@ declare(strict_types=1);
 
 namespace App\Services\Account;
 
+use App\Enums\Customer\CustomerType;
 use App\Models\Account;
 use App\Models\AccountProduct;
 use App\Models\AccountTier;
 use App\Models\Customer;
 use App\Services\Audit\AuditService;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class AccountService
 {
-    /**
-     * Account product each customer_type is defaulted into on approval.
-     */
+    // Account product each customer_type is defaulted into on approval.
     private const PRODUCT_TYPE_BY_CUSTOMER_TYPE = [
         'individual' => 'savings',
+        'minor'      => 'savings',
         'business'   => 'current',
+        'government' => 'current',
+        'corporate'  => 'current',
     ];
 
-    /**
-     * Leading digit of the 10-digit account number, by product type —
-     * savings accounts run 1000000001, 1000000002, ...; current accounts
-     * run 2000000001, 2000000002, ...; and so on per product type.
-     */
+    // Leading digit of the 10-digit account number, by product type — savings run 1000000001+, current run 2000000001+, domiciliary (dollar) run 3000000001+.
     private const ACCOUNT_NUMBER_PREFIX_BY_PRODUCT_TYPE = [
         'savings'     => '1',
         'current'     => '2',
-        'merchant'    => '3',
-        'corporate'   => '4',
-        'domiciliary' => '5',
+        'domiciliary' => '3',
     ];
 
     public function __construct(
@@ -45,16 +42,7 @@ class AccountService
         return Account::with(['customer', 'accountProduct', 'currency', 'accountTier'])->findOrFail($id);
     }
 
-    /**
-     * Lets an already-onboarded customer open an additional account. Only
-     * the account product, the requested account type (savings/current),
-     * and optionally the account tier are accepted — the requested type
-     * must match the product's own type, so a "current" request can only be
-     * fulfilled by a "current" product. When no tier is given, the lowest
-     * active tier is used, same as the default account opened on approval.
-     * The whole operation is one transaction: if anything fails, nothing is
-     * created.
-     */
+    // Lets an already-onboarded customer open an additional account; the requested type must match the product's own type. One transaction — if anything fails, nothing is created.
     public function openAccountForCustomer(Customer $customer, array $data): Account
     {
         $account = DB::transaction(function () use ($customer, $data) {
@@ -84,7 +72,7 @@ class AccountService
                 $accountTier = AccountTier::where('level', 1)->where('status', 'active')->first();
             }
 
-            $actor = auth()->user();
+            $actor = Auth::guard('user')->user();
 
             return Account::create([
                 'customer_id'        => $customer->id,
@@ -93,12 +81,13 @@ class AccountService
                 'account_tier_id'    => $accountTier?->id,
                 'account_name'       => $this->accountName($customer),
                 'account_number'     => $this->generateUniqueAccountNumber($accountProduct->product_type),
+                'primary_account'    => ! $customer->accounts()->exists(),
                 'status'             => 'active',
                 'created_by'         => $actor?->id,
             ])->refresh();
         });
 
-        $actor = auth()->user();
+        $actor = Auth::guard('user')->user();
 
         $this->audit->log(
             action: 'opened',
@@ -116,12 +105,7 @@ class AccountService
         return $this->applyStatus(Account::findOrFail($id), $status);
     }
 
-    /**
-     * Cascades a status change to every account belonging to a customer —
-     * only the accounts change, the customer record itself is untouched.
-     * Wrapped in a single transaction: if any account fails to update, none
-     * of them do.
-     */
+    // Cascades a status change to every account belonging to a customer, in one transaction — if any account fails to update, none of them do.
     public function updateStatusForCustomer(Customer $customer, string $status): Collection
     {
         return DB::transaction(
@@ -132,7 +116,7 @@ class AccountService
     private function applyStatus(Account $account, string $status): Account
     {
         $before = $account->status;
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         $account->update(['status' => $status]);
         $account->refresh();
@@ -162,7 +146,7 @@ class AccountService
     private function toggleFlag(Account $account, string $field, string $label): Account
     {
         $before = (bool) $account->{$field};
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         $account->update([$field => ! $before]);
         $account->refresh();
@@ -197,7 +181,7 @@ class AccountService
 
         $account = DB::transaction(function () use ($customer, $accountProduct) {
             $accountTier = AccountTier::where('level', 1)->where('status', 'active')->first();
-            $actor       = auth()->user();
+            $actor       = Auth::guard('user')->user();
 
             return Account::create([
                 'customer_id'        => $customer->id,
@@ -206,12 +190,13 @@ class AccountService
                 'account_tier_id'    => $accountTier?->id,
                 'account_name'       => $this->accountName($customer),
                 'account_number'     => $this->generateUniqueAccountNumber($accountProduct->product_type),
+                'primary_account'    => true,
                 'status'             => 'active',
                 'created_by'         => $actor?->id,
             ])->refresh();
         });
 
-        $actor = auth()->user();
+        $actor = Auth::guard('user')->user();
 
         $this->audit->log(
             action: 'opened',
@@ -224,33 +209,28 @@ class AccountService
         return $account;
     }
 
-    /**
-     * Individuals carry their own BVN; business customers don't — theirs
-     * lives on the director record instead, so a business is eligible once
-     * any director has a BVN on file.
-     */
+    // Individuals carry their own BVN. Business/government have no directors — theirs lives on the
+    // signatory. Corporate customers have both — either a director or a signatory with a BVN qualifies.
     private function isEligibleForAutoOpening(Customer $customer): bool
     {
-        $hasBvn = $customer->customer_type === 'business'
-            ? $customer->directors()->whereNotNull('bvn')->exists()
-            : ! empty($customer->bvn);
+        $hasBvn = match (true) {
+            $customer->customer_type === CustomerType::CORPORATE->value => $customer->directors()->whereNotNull('bvn')->exists()
+                || $customer->signatories()->whereNotNull('bvn')->exists(),
+            in_array($customer->customer_type, CustomerType::businessLike(), true) => $customer->signatories()->whereNotNull('bvn')->exists(),
+            default => ! empty($customer->bvn),
+        };
 
         return $hasBvn && $customer->documents()->where('type', 'profile_picture')->exists();
     }
 
     private function accountName(Customer $customer): string
     {
-        return $customer->customer_type === 'business'
+        return in_array($customer->customer_type, CustomerType::businessLike(), true)
             ? (string) $customer->business_name
             : trim("{$customer->first_name} {$customer->last_name}");
     }
 
-    /**
-     * Account numbers are sequential per product type, not random: savings
-     * accounts run 1000000001, 1000000002, ...; current accounts run
-     * 2000000001, 2000000002, .... Must be called inside a DB::transaction
-     * so lockForUpdate() actually holds the row lock until commit.
-     */
+    // Account numbers are sequential per product type, not random. Must be called inside a DB::transaction so lockForUpdate() actually holds the lock until commit.
     private function generateUniqueAccountNumber(string $productType): string
     {
         $prefix = self::ACCOUNT_NUMBER_PREFIX_BY_PRODUCT_TYPE[$productType] ?? '9';

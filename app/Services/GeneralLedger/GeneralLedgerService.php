@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Services\GeneralLedger;
 
+use App\Enums\GeneralLedger\GeneralLedgerStatus;
 use App\Models\Currency;
 use App\Models\GeneralLedger;
 use App\Services\Audit\AuditService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -35,9 +37,19 @@ class GeneralLedgerService
         return GeneralLedger::findOrFail($id);
     }
 
+    public function available(int $perPage = 15): LengthAwarePaginator
+    {
+        return GeneralLedger::query()
+            ->where('status', GeneralLedgerStatus::ACTIVE->value)
+            ->whereDoesntHave('productMapping')
+            ->latest()
+            ->paginate($perPage)
+            ->withQueryString();
+    }
+
     public function create(array $data): GeneralLedger
     {
-        $actor = auth()->user();
+        $actor = Auth::guard('user')->user();
 
         $generalLedger = DB::transaction(function () use ($data) {
             $data['gl_code']       = $this->generateGlCode($data['classification']);
@@ -66,7 +78,7 @@ class GeneralLedgerService
     public function update(GeneralLedger $generalLedger, array $data): GeneralLedger
     {
         $before = $generalLedger->toArray();
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         DB::transaction(function () use ($generalLedger, $data) {
             unset($data['gl_code'], $data['currency_id'], $data['currency_code'], $data['status']);
@@ -105,7 +117,7 @@ class GeneralLedgerService
     public function updateStatus(GeneralLedger $generalLedger, string $status): GeneralLedger
     {
         $before = $generalLedger->status;
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         $generalLedger->update(['status' => $status]);
         $generalLedger->refresh();
@@ -126,7 +138,7 @@ class GeneralLedgerService
     {
         $name   = $generalLedger->name;
         $glCode = $generalLedger->gl_code;
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         $generalLedger->delete();
 

@@ -12,9 +12,7 @@ enum GeneralLedgerClassification: string
     case INCOME = 'income';
     case EXPENSE = 'expense';
 
-    /**
-     * @return string[]
-     */
+    /** @return string[] */
     public static function values(): array
     {
         return array_map(fn (self $case) => $case->value, self::cases());

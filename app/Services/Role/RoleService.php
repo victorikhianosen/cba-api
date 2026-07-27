@@ -39,7 +39,7 @@ class RoleService
     public function create(array $data): Role
     {
         $name = $this->normalizeName($data['name']);
-        $actor = auth()->user();
+        $actor = Auth::guard('user')->user();
 
         try {
             $role = Role::create([
@@ -65,7 +65,7 @@ class RoleService
     public function update(Role $role, array $data): Role
     {
         $before = ['name' => $role->name];
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         $role->update([
             'name' => isset($data['name']) ? $this->normalizeName($data['name']) : $role->name,
@@ -89,7 +89,7 @@ class RoleService
     {
         $role  = $this->find($id);
         $name  = $role->name;
-        $actor = auth()->user();
+        $actor = Auth::guard('user')->user();
 
         $role->delete();
 
@@ -105,7 +105,7 @@ class RoleService
     public function syncPermissions(Role $role, array $permissions): Role
     {
         $before = $role->permissions->pluck('name');
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         $role->syncPermissions($permissions);
         $role->refresh()->load('permissions');

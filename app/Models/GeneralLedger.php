@@ -7,6 +7,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class GeneralLedger extends Model
 {
@@ -38,5 +39,10 @@ class GeneralLedger extends Model
     public function journalEntries(): HasMany
     {
         return $this->hasMany(JournalEntry::class);
+    }
+
+    public function productMapping(): HasOne
+    {
+        return $this->hasOne(ProductToGlAccountMapping::class);
     }
 }

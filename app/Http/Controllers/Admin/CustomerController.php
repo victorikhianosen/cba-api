@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\Customer\ApproveCustomerRequest;
+use App\Http\Requests\Admin\Customer\BulkUpdateCustomerRequest;
 use App\Http\Requests\Admin\Customer\CloseCustomerRequest;
 use App\Http\Requests\Admin\Customer\RejectCustomerRequest;
 use App\Http\Requests\Admin\Customer\StoreCustomerAccountRequest;
@@ -14,6 +16,7 @@ use App\Http\Requests\Admin\Customer\UpdateCustomerRequest;
 use App\Http\Requests\Admin\Customer\UpdateDocumentRequest;
 use App\Http\Requests\Admin\Customer\UploadDocumentsRequest;
 use App\Http\Resources\Admin\Account\AccountResource;
+use App\Http\Resources\Admin\Customer\CustomerListResource;
 use App\Http\Resources\Admin\Customer\CustomerResource;
 use App\Http\Resources\Admin\Customer\DocumentResource;
 use App\Services\Account\AccountService;
@@ -42,7 +45,7 @@ class CustomerController extends Controller
 
         return $this->success(
             message: 'Customers retrieved successfully.',
-            data: CustomerResource::collection($customers),
+            data: CustomerListResource::collection($customers),
         );
     }
 
@@ -73,6 +76,30 @@ class CustomerController extends Controller
                 responseCode: '101',
                 statusCode: 422,
                 errors: $e->errors(),
+            );
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->error(
+                message: 'We are unable to process your request please try again.',
+                responseCode: '500',
+                statusCode: 500,
+            );
+        }
+    }
+
+    public function bulkUpdate(BulkUpdateCustomerRequest $request): JsonResponse
+    {
+        $data = $request->validated();
+        $customerIds = $data['customer_ids'];
+        unset($data['customer_ids']);
+
+        try {
+            $result = $this->customers->bulkUpdate($customerIds, $data);
+
+            return $this->success(
+                message: 'Bulk update complete: ' . count($result['updated']) . ' updated, ' . count($result['skipped']) . ' skipped.',
+                data: $result,
             );
         } catch (\Throwable $e) {
             report($e);
@@ -119,15 +146,15 @@ class CustomerController extends Controller
         }
     }
 
-    public function approve(int $id): JsonResponse
+    public function approve(ApproveCustomerRequest $request, int $id): JsonResponse
     {
         try {
             $customer = $this->customers->find($id);
-            $customer = $this->customers->approve($customer);
+            $this->customers->approve($customer, $request->validated());
 
             return $this->success(
-                message: 'Customer approved successfully.'
-                // data: new CustomerResource($customer),
+                message: 'Customer approved successfully.',
+                data: new CustomerResource($this->customers->find($id)),
             );
         } catch (ModelNotFoundException $e) {
             return $this->error(
@@ -187,11 +214,7 @@ class CustomerController extends Controller
         }
     }
 
-    /**
-     * Closing a customer is a status change, never a delete (soft or hard) —
-     * this is the only way to "remove" a customer, matching real banking
-     * practice.
-     */
+    // Closing a customer is a status change, never a delete — the only way to "remove" a customer, matching real banking practice.
     public function close(CloseCustomerRequest $request, int $id): JsonResponse
     {
         try {
@@ -226,10 +249,7 @@ class CustomerController extends Controller
         }
     }
 
-    /**
-     * There is no hard or soft delete for customers — DELETE reuses the same
-     * close() status-change-plus-audit-log flow as POST {id}/close.
-     */
+    // No hard or soft delete for customers — DELETE reuses the close() status-change flow.
     public function destroy(CloseCustomerRequest $request, int $id): JsonResponse
     {
         try {
@@ -264,11 +284,7 @@ class CustomerController extends Controller
         }
     }
 
-    /**
-     * Accepts one or more files under any field name (multipart form-data) —
-     * each field name becomes that document's type/title and the file is
-     * stored to the s3 (MinIO) disk.
-     */
+    // Accepts one or more files under any field name — each field name becomes that document's type/title.
     public function uploadDocuments(UploadDocumentsRequest $request, int $id): JsonResponse
     {
         try {
@@ -326,12 +342,7 @@ class CustomerController extends Controller
         }
     }
 
-    /**
-     * Lets an already onboarded customer open an additional account, given
-     * only an account product and the desired type (savings/current) — the
-     * whole operation happens in one transaction, so a failure rolls back
-     * cleanly and never leaves a half-created account behind.
-     */
+    // Lets an already onboarded customer open an additional account; the whole operation is one transaction, so a failure never leaves a half-created account.
     public function storeAccount(StoreCustomerAccountRequest $request, int $id): JsonResponse
     {
         try {
@@ -368,10 +379,7 @@ class CustomerController extends Controller
         }
     }
 
-    /**
-     * Cascades a status change to every account this customer owns — only
-     * the accounts are affected, the customer record itself is untouched.
-     */
+    // Cascades a status change to every account this customer owns; the customer record itself is untouched.
     public function updateAccountsStatus(UpdateCustomerAccountsStatusRequest $request, int $id): JsonResponse
     {
         try {

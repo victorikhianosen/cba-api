@@ -6,6 +6,7 @@ namespace App\Http\Resources\Admin\Customer;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Storage;
 
 class DocumentResource extends JsonResource
 {
@@ -17,6 +18,7 @@ class DocumentResource extends JsonResource
             'account_id'  => $this->account_id,
             'title'       => $this->title,
             'path'        => $this->path,
+            'url'         => $this->path ? Storage::disk('s3')->url($this->path) : null,
             'type'        => $this->type,
             'uploaded_by' => $this->uploaded_by,
             'status'      => $this->status,

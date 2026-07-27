@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace App\Services\Permission;
 
 use App\Services\Audit\AuditService;
-use Spatie\Permission\Exceptions\PermissionAlreadyExists;
-use Spatie\Permission\Models\Permission;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Exceptions\PermissionAlreadyExists;
+use Spatie\Permission\Models\Permission;
 
 class PermissionService
 {
@@ -36,7 +37,7 @@ class PermissionService
     public function create(array $data): Permission
     {
         $name  = $this->normalizeName($data['name']);
-        $actor = auth()->user();
+        $actor = Auth::guard('user')->user();
 
         try {
             $permission = Permission::create([
@@ -79,7 +80,7 @@ class PermissionService
 
             $permission->update(['name' => $name]);
 
-            $actor = auth()->user();
+            $actor = Auth::guard('user')->user();
 
             $this->audit->log(
                 action: 'updated',
@@ -97,7 +98,7 @@ class PermissionService
     public function delete(Permission $permission): void
     {
         $name  = $permission->name;
-        $actor = auth()->user();
+        $actor = Auth::guard('user')->user();
 
         $permission->delete();
 

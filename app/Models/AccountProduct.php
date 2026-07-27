@@ -10,8 +10,6 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class AccountProduct extends Model
 {
-    public const PRODUCT_TYPES = ['savings', 'current', 'merchant', 'corporate', 'domiciliary'];
-
     protected $guarded = [];
 
     protected function casts(): array

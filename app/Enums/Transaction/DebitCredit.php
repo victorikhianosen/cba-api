@@ -9,9 +9,7 @@ enum DebitCredit: string
     case DEBIT = 'debit';
     case CREDIT = 'credit';
 
-    /**
-     * @return string[]
-     */
+    /** @return string[] */
     public static function values(): array
     {
         return array_map(fn (self $case) => $case->value, self::cases());

@@ -7,6 +7,7 @@ namespace App\Services\AccountOfficer;
 use App\Models\AccountOfficer;
 use App\Services\Audit\AuditService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 class AccountOfficerService
@@ -27,7 +28,7 @@ class AccountOfficerService
 
     public function create(array $data): AccountOfficer
     {
-        $actor = auth()->user();
+        $actor = Auth::guard('user')->user();
 
         $data['email'] = Str::lower(trim($data['email']));
         $data['code']  = $this->generateUniqueCode();
@@ -49,7 +50,7 @@ class AccountOfficerService
     public function update(AccountOfficer $officer, array $data): AccountOfficer
     {
         $before = $officer->toArray();
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         if (isset($data['email'])) {
             $data['email'] = Str::lower(trim($data['email']));
@@ -75,7 +76,7 @@ class AccountOfficerService
     public function updateStatus(AccountOfficer $officer, string $status): AccountOfficer
     {
         $before = $officer->status;
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         $officer->update(['status' => $status]);
         $officer->refresh();
@@ -96,7 +97,7 @@ class AccountOfficerService
     {
         $name  = "{$officer->first_name} {$officer->last_name}";
         $code  = $officer->code;
-        $actor = auth()->user();
+        $actor = Auth::guard('user')->user();
 
         $officer->delete();
 

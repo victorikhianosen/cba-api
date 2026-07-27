@@ -9,11 +9,7 @@ use App\Rules\StrictInteger;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-/**
- * Field names mirror Fineract's LoanProductAccountingParams
- * (fineract-core/.../accounting/common/AccountingConstants.java) for
- * cash-based loan accounting.
- */
+// Field names mirror Fineract's LoanProductAccountingParams for cash-based loan accounting.
 class StoreLoanProductRequest extends FormRequest
 {
     public function authorize(): bool
@@ -26,6 +22,12 @@ class StoreLoanProductRequest extends FormRequest
         if ($this->filled('name')) {
             $this->merge([
                 'name' => strtolower(str_replace(' ', '_', trim($this->name))),
+            ]);
+        }
+
+        if ($this->filled('interest_calculation_days_in_year')) {
+            $this->merge([
+                'interest_calculation_days_in_year' => (string) $this->interest_calculation_days_in_year,
             ]);
         }
     }

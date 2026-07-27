@@ -6,28 +6,26 @@ namespace App\Services\User;
 
 use App\Models\User;
 use App\Services\Audit\AuditService;
-use Illuminate\Contracts\Encryption\DecryptException;
-use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use PragmaRX\Google2FAQRCode\Google2FA;
 
 class AuthService
 {
-    private const TWO_FACTOR_PURPOSE = 'two_factor_auth';
-
     private const TWO_FACTOR_TTL_MINUTES = 10;
+
+    // A token gets locked out after this many wrong codes, closing the window to brute-force
+    // the 6-digit code against a single captured token before it naturally expires.
+    private const TWO_FACTOR_MAX_ATTEMPTS = 5;
 
     public function __construct(
         private AuditService $audit,
         private Google2FA $google2fa,
     ) {}
 
-    /**
-     * Validate credentials and hand back a two-factor challenge instead of
-     * an access token. New users (no confirmed secret yet) get a QR code to
-     * scan; returning users are just asked for the code from their app.
-     */
+    // Hands back a two-factor challenge instead of an access token — new users get a QR code to scan, returning users just get asked for the code.
     public function login(array $credentials): array
     {
         $user = User::where('username', $credentials['username'])->first();
@@ -98,16 +96,14 @@ class AuthService
         ];
     }
 
-    /**
-     * Confirm the Google Authenticator code and issue the real access token.
-     * On a user's first confirmation this also marks 2FA as enabled, so
-     * later logins skip the QR-scan step and only ask for the code.
-     */
+    // Confirms the Google Authenticator code and issues the real access token; a first confirmation also marks 2FA enabled so later logins skip the QR step.
     public function verifyTwoFactor(string $twoFactorToken, string $code): array
     {
         $user = $this->resolveTwoFactorUser($twoFactorToken);
 
         if (! $user->google2fa_secret || ! $this->google2fa->verifyKey($user->google2fa_secret, $code)) {
+            $this->registerFailedTwoFactorAttempt($twoFactorToken);
+
             $this->audit->log(
                 action: 'two_factor_failed',
                 module: 'auth',
@@ -119,6 +115,11 @@ class AuthService
                 'code' => ['The authentication code is invalid or has expired.'],
             ]);
         }
+
+        // One-time use: burn the challenge the moment it succeeds so the same token + code
+        // pair can never be replayed to mint additional access tokens.
+        Cache::forget($this->twoFactorCacheKey($twoFactorToken));
+        Cache::forget($this->twoFactorAttemptsCacheKey($twoFactorToken));
 
         $firstTimeSetup = ! $user->enable_2fa;
 
@@ -155,36 +156,35 @@ class AuthService
         );
     }
 
+    // Random opaque token backed by a cache entry (not a self-contained encrypted payload) so it
+    // can actually be invalidated server-side the moment it's used — Crypt::encrypt alone can only
+    // expire, never be revoked, which let a captured token+code pair be replayed indefinitely.
     private function issueTwoFactorToken(User $user): string
     {
-        return Crypt::encrypt([
-            'user_id'    => $user->id,
-            'purpose'    => self::TWO_FACTOR_PURPOSE,
-            'expires_at' => now()->addMinutes(self::TWO_FACTOR_TTL_MINUTES)->getTimestamp(),
-        ]);
+        $token = Str::random(64);
+
+        Cache::put($this->twoFactorCacheKey($token), $user->id, now()->addMinutes(self::TWO_FACTOR_TTL_MINUTES));
+
+        return $token;
     }
 
     private function resolveTwoFactorUser(string $twoFactorToken): User
     {
-        try {
-            $payload = Crypt::decrypt($twoFactorToken);
-        } catch (DecryptException $e) {
+        if ($this->twoFactorAttempts($twoFactorToken) >= self::TWO_FACTOR_MAX_ATTEMPTS) {
             throw ValidationException::withMessages([
-                'two_factor_token' => ['This verification session is invalid. Please log in again.'],
+                'two_factor_token' => ['Too many incorrect attempts. Please log in again.'],
             ]);
         }
 
-        if (
-            ! is_array($payload)
-            || ($payload['purpose'] ?? null) !== self::TWO_FACTOR_PURPOSE
-            || ($payload['expires_at'] ?? 0) < now()->getTimestamp()
-        ) {
+        $userId = Cache::get($this->twoFactorCacheKey($twoFactorToken));
+
+        if (! $userId) {
             throw ValidationException::withMessages([
-                'two_factor_token' => ['This verification session has expired. Please log in again.'],
+                'two_factor_token' => ['This verification session is invalid or has expired. Please log in again.'],
             ]);
         }
 
-        $user = User::find($payload['user_id']);
+        $user = User::find($userId);
 
         if (! $user) {
             throw ValidationException::withMessages([
@@ -193,5 +193,27 @@ class AuthService
         }
 
         return $user;
+    }
+
+    private function registerFailedTwoFactorAttempt(string $twoFactorToken): void
+    {
+        $key = $this->twoFactorAttemptsCacheKey($twoFactorToken);
+
+        Cache::put($key, $this->twoFactorAttempts($twoFactorToken) + 1, now()->addMinutes(self::TWO_FACTOR_TTL_MINUTES));
+    }
+
+    private function twoFactorAttempts(string $twoFactorToken): int
+    {
+        return (int) Cache::get($this->twoFactorAttemptsCacheKey($twoFactorToken), 0);
+    }
+
+    private function twoFactorCacheKey(string $twoFactorToken): string
+    {
+        return "two_factor_token:{$twoFactorToken}";
+    }
+
+    private function twoFactorAttemptsCacheKey(string $twoFactorToken): string
+    {
+        return "two_factor_token_attempts:{$twoFactorToken}";
     }
 }

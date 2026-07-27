@@ -8,6 +8,6 @@ Route::get('/', function () {
     return response()->json([
         'status' => 'success',
         'responseCode' => '200',
-        'message' => 'The endpoint is reachable. Thank you for calling our API.',
+        'message' => 'The endpoint is reachable. Thank You.',
     ], 200);
 });

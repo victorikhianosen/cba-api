@@ -9,6 +9,7 @@ use App\Models\Document;
 use App\Services\Audit\AuditService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -24,16 +25,14 @@ class DocumentService
         return $customer->documents()->findOrFail($documentId);
     }
 
+    // Field name becomes the document's type as-is; its humanized form becomes the title (e.g. profile_picture -> "Profile Picture").
     /**
-     * @param array<string, UploadedFile> $files Field name => uploaded file.
-     *   The field name becomes the document's type as-is and its
-     *   humanized form becomes the title (e.g. profile_picture ->
-     *   type "profile_picture", title "Profile Picture").
+     * @param array<string, UploadedFile> $files
      * @return Collection<int, Document>
      */
     public function upload(Customer $customer, array $files): Collection
     {
-        $actor = auth()->user();
+        $actor = Auth::guard('user')->user();
 
         $documents = DB::transaction(function () use ($customer, $files, $actor) {
             return collect($files)->map(function (UploadedFile $file, string $type) use ($customer, $actor) {
@@ -63,7 +62,7 @@ class DocumentService
     public function update(Document $document, array $data): Document
     {
         $before = $document->only(['title', 'type', 'status']);
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         if (isset($data['status']) && $data['status'] !== $document->status) {
             if ($data['status'] === 'approved') {

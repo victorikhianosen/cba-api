@@ -4,10 +4,7 @@ declare(strict_types=1);
 
 namespace App\Enums\Product;
 
-/**
- * GL role vocabulary for deposit-family products (savings, current, merchant,
- * corporate, domiciliary) and investment/fixed-term products.
- */
+// GL role vocabulary for deposit-family products (savings, current, merchant, corporate, domiciliary) and investment/fixed-term products.
 enum AccountProductType: int
 {
     case ACCOUNT_CONTROL = 1;
@@ -35,15 +32,8 @@ enum AccountProductType: int
         };
     }
 
-    /**
-     * Mandatory for every deposit/investment product. OVERDRAFT_PORTFOLIO_CONTROL
-     * is conditionally required only when allow_overdraft is true (handled by
-     * the service, since that depends on product data, not the enum).
-     * INCOME_FROM_INTEREST, LOSSES_WRITTEN_OFF, and ESCHEAT_LIABILITY are
-     * accepted if supplied but never mandatory.
-     *
-     * @return self[]
-     */
+    // Mandatory for every deposit/investment product; OVERDRAFT_PORTFOLIO_CONTROL is required only when allow_overdraft is true (handled by the service).
+    /** @return self[] */
     public static function required(): array
     {
         return [
@@ -55,9 +45,7 @@ enum AccountProductType: int
         ];
     }
 
-    /**
-     * @return string[]
-     */
+    /** @return string[] */
     public static function names(): array
     {
         return array_map(fn (self $case) => $case->name, self::cases());

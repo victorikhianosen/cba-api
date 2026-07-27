@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\Product\AccountProduct;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\AccountProduct\StoreAccountProductRequest;
 use App\Http\Requests\Admin\AccountProduct\UpdateAccountProductRequest;
 use App\Http\Requests\Admin\AccountProduct\UpdateAccountProductStatusRequest;
 use App\Http\Resources\Admin\AccountProduct\AccountProductResource;
-use App\Models\AccountProduct;
 use App\Services\AccountProduct\AccountProductService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -26,7 +26,7 @@ class AccountProductController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $accountProducts = $this->accountProducts->list($request->integer('per_page', 15), AccountProduct::PRODUCT_TYPES);
+        $accountProducts = $this->accountProducts->list($request->integer('per_page', 15), AccountProduct::values());
 
         return $this->success(
             message: 'Account products retrieved successfully.',
@@ -36,7 +36,7 @@ class AccountProductController extends Controller
 
     public function show(int $id): JsonResponse
     {
-        $accountProduct = $this->accountProducts->find($id, AccountProduct::PRODUCT_TYPES);
+        $accountProduct = $this->accountProducts->find($id, AccountProduct::values());
 
         return $this->success(
             message: 'Account product retrieved successfully.',
@@ -75,7 +75,7 @@ class AccountProductController extends Controller
 
     public function update(UpdateAccountProductRequest $request, int $id): JsonResponse
     {
-        $accountProduct = $this->accountProducts->find($id, AccountProduct::PRODUCT_TYPES);
+        $accountProduct = $this->accountProducts->find($id, AccountProduct::values());
 
         try {
             $accountProduct = $this->accountProducts->update($accountProduct, $request->validated());
@@ -104,7 +104,7 @@ class AccountProductController extends Controller
 
     public function approve(int $id): JsonResponse
     {
-        $accountProduct = $this->accountProducts->find($id, AccountProduct::PRODUCT_TYPES);
+        $accountProduct = $this->accountProducts->find($id, AccountProduct::values());
 
         try {
             $accountProduct = $this->accountProducts->approve($accountProduct);
@@ -133,7 +133,7 @@ class AccountProductController extends Controller
 
     public function updateStatus(UpdateAccountProductStatusRequest $request, int $id): JsonResponse
     {
-        $accountProduct = $this->accountProducts->find($id, AccountProduct::PRODUCT_TYPES);
+        $accountProduct = $this->accountProducts->find($id, AccountProduct::values());
 
         try {
             $accountProduct = $this->accountProducts->updateStatus($accountProduct, $request->validated()['status']);
@@ -155,7 +155,7 @@ class AccountProductController extends Controller
 
     // public function destroy(int $id): JsonResponse
     // {
-    //     $accountProduct = $this->accountProducts->find($id, AccountProduct::PRODUCT_TYPES);
+    //     $accountProduct = $this->accountProducts->find($id, AccountProduct::values());
 
     //     try {
     //         $this->accountProducts->delete($accountProduct);

@@ -11,23 +11,10 @@ use App\Enums\Transaction\TransactionStatus;
 use App\Models\Account;
 use App\Models\Transaction;
 use App\Services\GeneralLedger\GeneralLedgerPostingService;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
-/**
- * The single place allowed to mutate account_balance/available_balance and
- * write the matching transactions row — every channel that moves money in
- * or out of an account (admin postings today, mobile/internet banking
- * later) must go through debit()/credit() here instead of touching the
- * Account model's balance columns directly. Callers are expected to invoke
- * these from inside their own DB::transaction() so the lockForUpdate()
- * below actually holds the row lock until commit, same precondition as
- * AccountService::generateUniqueAccountNumber().
- *
- * Every account leg also mirrors the same debit/credit into that account's
- * product ACCOUNT_CONTROL general ledger — accounts are subledgers, not
- * standalone books, so a customer-only entry with no GL side would leave
- * the GL trial balance out of sync with the sum of account balances.
- */
+// The single place allowed to mutate account_balance/available_balance — every channel (admin postings, mobile, internet banking) must go through debit()/credit() here. Callers must invoke from inside their own DB::transaction() so lockForUpdate() holds until commit. Every leg also mirrors into the account's product ACCOUNT_CONTROL GL so the trial balance stays reconciled.
 class AccountPostingService
 {
     public function __construct(
@@ -44,12 +31,7 @@ class AccountPostingService
         return $this->post($account, DebitCredit::CREDIT, $leg);
     }
 
-    /**
-     * Whether a debit of $amount would fit within the account's available
-     * balance plus its overdraft allowance, if any. Used to pre-check a
-     * posting before it's even created — the same insufficient-funds rule
-     * enforced again (against the locked row) inside post() at approval time.
-     */
+    // Whether $amount fits within available_balance + overdraft allowance; used to pre-check before a posting is even created (re-enforced against the locked row in post()).
     public function hasSufficientFunds(Account $account, string $amount): bool
     {
         $overdraftLimit = $account->accountProduct?->allow_overdraft
@@ -140,11 +122,26 @@ class AccountPostingService
             'created_by'               => $leg['created_by'] ?? null,
         ]);
 
-        // Mirror the same debit/credit into the account's control GL so the
-        // GL trial balance stays reconciled with the account subledger.
+        // Mirror the same debit/credit into the account's control GL so the GL trial balance stays reconciled with the account subledger.
         $debitCredit === DebitCredit::DEBIT
             ? $this->glLedger->debit($controlGeneralLedger, $leg)
             : $this->glLedger->credit($controlGeneralLedger, $leg);
+
+        Log::channel('accounts')->info('account_transaction', [
+            'transaction_id'           => $transaction->id,
+            'financial_transaction_id' => $leg['financial_transaction_id'],
+            'entry_group_id'           => $leg['entry_group_id'],
+            'account_id'               => $account->id,
+            'account_number'           => $account->account_number,
+            'customer_id'              => $account->customer_id,
+            'debit_credit'             => $debitCredit->value,
+            'amount'                   => $amount,
+            'balance_before'           => $balanceBefore,
+            'balance_after'            => $balanceAfter,
+            'currency_id'              => $leg['currency_id'],
+            'posting_date'             => $transaction->posting_date,
+            'created_by'               => $leg['created_by'] ?? null,
+        ]);
 
         return $transaction;
     }

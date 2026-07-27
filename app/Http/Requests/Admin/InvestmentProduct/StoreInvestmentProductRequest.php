@@ -9,12 +9,7 @@ use App\Rules\StrictInteger;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-/**
- * Field names mirror Fineract's SavingProductAccountingParams
- * (fineract-core/.../accounting/common/AccountingConstants.java) — Fixed
- * Deposit Product accounting in Fineract reuses the savings product's GL
- * vocabulary rather than defining its own.
- */
+// Field names mirror Fineract's SavingProductAccountingParams — Fixed Deposit Product accounting reuses the savings product's GL vocabulary.
 class StoreInvestmentProductRequest extends FormRequest
 {
     public function authorize(): bool
@@ -27,6 +22,12 @@ class StoreInvestmentProductRequest extends FormRequest
         if ($this->filled('name')) {
             $this->merge([
                 'name' => strtolower(str_replace(' ', '_', trim($this->name))),
+            ]);
+        }
+
+        if ($this->filled('interest_calculation_days_in_year')) {
+            $this->merge([
+                'interest_calculation_days_in_year' => (string) $this->interest_calculation_days_in_year,
             ]);
         }
     }

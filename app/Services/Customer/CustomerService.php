@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Services\Customer;
 
+use App\Enums\Customer\CustomerType;
+use App\Models\AccountProduct;
 use App\Models\Customer;
 use App\Services\Account\AccountService;
 use App\Services\Audit\AuditService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -18,11 +21,8 @@ class CustomerService
 {
     private const HASHABLE_FIELDS = ['password', 'panic_password', 'pin'];
 
-    /**
-     * Document types every customer — individual or business — must have
-     * uploaded (via DocumentService::upload()) before they can be approved.
-     */
-    private const REQUIRED_DOCUMENT_TYPES = ['profile_picture', 'utility_bill'];
+    // Fields a bulk edit is allowed to touch — shared assignment fields only, never personal/identity data.
+    private const BULK_EDITABLE_FIELDS = ['branch_id', 'account_officer_id'];
 
     public function __construct(
         private AuditService $audit,
@@ -31,10 +31,10 @@ class CustomerService
 
     public function list(int $perPage = 15): LengthAwarePaginator
     {
-        return Customer::query()->with(['branch', 'accountOfficer'])->latest()->paginate($perPage)->withQueryString();
+        return Customer::query()->latest()->paginate($perPage)->withQueryString();
     }
 
-    private const RELATIONS = ['branch', 'accountOfficer', 'documents', 'addresses', 'nextOfKin', 'business', 'directors', 'signatories'];
+    private const RELATIONS = ['branch', 'accountOfficer', 'documents', 'currentAddress', 'nextOfKin', 'business', 'directors', 'signatories', 'accounts.accountProduct', 'accounts.accountTier'];
 
     public function find(int $id): Customer
     {
@@ -43,19 +43,21 @@ class CustomerService
 
     public function create(array $data): Customer
     {
-        $actor = auth()->user();
+        $actor = Auth::guard('user')->user();
 
         $profilePicture = $data['profile_picture'] ?? null;
         $utilityBill    = $data['utility_bill'] ?? null;
-        $addresses      = $data['addresses'] ?? [];
+        $validId        = $data['valid_id'] ?? null;
+        $businessLogo   = $data['business_logo'] ?? null;
+        $address        = $data['address'] ?? null;
         $nextOfKin      = $data['next_of_kin'] ?? [];
         $business       = $data['business'] ?? null;
         $directors      = $data['directors'] ?? [];
         $signatories    = $data['signatories'] ?? [];
 
         unset(
-            $data['profile_picture'], $data['utility_bill'],
-            $data['addresses'], $data['next_of_kin'], $data['business'], $data['directors'], $data['signatories'],
+            $data['profile_picture'], $data['utility_bill'], $data['valid_id'], $data['business_logo'],
+            $data['address'], $data['next_of_kin'], $data['business'], $data['directors'], $data['signatories'],
         );
 
         unset(
@@ -64,13 +66,15 @@ class CustomerService
             $data['rejected_by'], $data['rejected_at'], $data['rejection_reason'],
             $data['closed_by'], $data['closed_at'], $data['closure_reason'],
             $data['id_verified'], $data['face_verified'], $data['utility_verified'],
+            $data['otp'], $data['otp_verified'],
             $data['enable_internet_bank'], $data['enable_sms'], $data['enable_email'],
             $data['enable_reset_password'], $data['enable_panic_password'],
             $data['referral_code'],
         );
 
-        $data['cif_number']    = $this->generateUniqueCifNumber();
-        $data['referral_code'] = $this->generateUniqueReferralCode();
+        $data['cif_number']     = $this->generateUniqueCifNumber();
+        $data['referral_code']  = $this->generateUniqueReferralCode();
+        $data['panic_password'] = null; // Not offered at onboarding yet — always null regardless of what's sent.
 
         if ($business) {
             $data['business_name'] = $business['business_name'] ?? null;
@@ -83,10 +87,17 @@ class CustomerService
             }
         }
 
-        $customer = DB::transaction(function () use ($data, $actor, $profilePicture, $utilityBill, $addresses, $nextOfKin, $business, $directors, $signatories) {
+        $customer = DB::transaction(function () use ($data, $actor, $profilePicture, $utilityBill, $validId, $businessLogo, $address, $nextOfKin, $business, $directors, $signatories) {
             $customer = Customer::create($data);
 
-            foreach (['profile_picture' => $profilePicture, 'utility_bill' => $utilityBill] as $type => $file) {
+            $documentFiles = [
+                'profile_picture' => $profilePicture,
+                'utility_bill'    => $utilityBill,
+                'valid_id'        => $validId,
+                'business_logo'   => $businessLogo,
+            ];
+
+            foreach ($documentFiles as $type => $file) {
                 if ($file instanceof UploadedFile) {
                     $customer->documents()->create([
                         'title'       => Str::of($type)->replace('_', ' ')->title()->value(),
@@ -98,7 +109,8 @@ class CustomerService
                 }
             }
 
-            foreach ($addresses as $address) {
+            if ($address) {
+                $address['status'] = 'current';
                 $customer->addresses()->create($address);
             }
 
@@ -160,17 +172,14 @@ class CustomerService
         return $customer;
     }
 
-    /**
-     * Customer type is permanent (individual/business/minor never changes
-     * once set) and accounts belong to their own model/table entirely —
-     * neither is ever touched here, no matter what the caller sends.
-     */
+    // Customer type is permanent and accounts belong to their own model — neither is ever touched here, no matter what the caller sends.
     private const IMMUTABLE_FIELDS = [
         'cif_number', 'status', 'referral_code',
         'approved_by', 'approved_at',
         'rejected_by', 'rejected_at', 'rejection_reason',
         'closed_by', 'closed_at', 'closure_reason',
         'id_verified', 'face_verified', 'utility_verified',
+        'otp', 'otp_verified',
         'created_at', 'created_by',
         'accounts', 'account_id', 'account_ids',
     ];
@@ -183,8 +192,23 @@ class CustomerService
             ]);
         }
 
+        $profilePicture = $data['profile_picture'] ?? null;
+        $utilityBill    = $data['utility_bill'] ?? null;
+        $validId        = $data['valid_id'] ?? null;
+        $businessLogo   = $data['business_logo'] ?? null;
+        $address        = $data['address'] ?? null;
+        $nextOfKin      = $data['next_of_kin'] ?? [];
+        $business       = $data['business'] ?? null;
+        $directors      = $data['directors'] ?? [];
+        $signatories    = $data['signatories'] ?? [];
+
+        unset(
+            $data['profile_picture'], $data['utility_bill'], $data['valid_id'], $data['business_logo'],
+            $data['address'], $data['next_of_kin'], $data['business'], $data['directors'], $data['signatories'],
+        );
+
         $before = $customer->only(['phone', 'email', 'username', 'branch_id', 'account_officer_id']);
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         foreach (self::HASHABLE_FIELDS as $field) {
             if (! empty($data[$field])) {
@@ -198,8 +222,101 @@ class CustomerService
             unset($data[$field]);
         }
 
-        $customer->update($data);
-        $customer->refresh()->load(['branch', 'accountOfficer']);
+        DB::transaction(function () use ($customer, $data, $actor, $profilePicture, $utilityBill, $validId, $businessLogo, $address, $nextOfKin, $business, $directors, $signatories) {
+            $customer->update($data);
+
+            $documentFiles = [
+                'profile_picture' => $profilePicture,
+                'utility_bill'    => $utilityBill,
+                'valid_id'        => $validId,
+                'business_logo'   => $businessLogo,
+            ];
+
+            foreach ($documentFiles as $type => $file) {
+                if ($file instanceof UploadedFile) {
+                    $customer->documents()->create([
+                        'title'       => Str::of($type)->replace('_', ' ')->title()->value(),
+                        'type'        => $type,
+                        'path'        => $file->store("customer-documents/{$customer->id}", 's3'),
+                        'uploaded_by' => $actor?->id,
+                        'status'      => 'pending',
+                    ]);
+                }
+            }
+
+            if ($address) {
+                // Demote the existing current address to history, then insert the new one as current —
+                // never overwrite in place, so the customer's address history stays queryable.
+                $customer->addresses()->where('status', 'current')->update(['status' => 'previous']);
+
+                $address['status'] = 'current';
+                $customer->addresses()->create($address);
+            }
+
+            foreach ($nextOfKin as $kin) {
+                $id = $kin['id'] ?? null;
+                unset($kin['id']);
+
+                if ($id) {
+                    $customer->nextOfKin()->whereKey($id)->update($kin);
+                    continue;
+                }
+
+                $customer->nextOfKin()->create($kin);
+            }
+
+            if ($business) {
+                $customer->business()->updateOrCreate([], $business);
+            }
+
+            $directorIdByIndex = [];
+
+            foreach ($directors as $index => $director) {
+                $id = $director['id'] ?? null;
+                unset($director['id']);
+
+                if (($director['passport_photo'] ?? null) instanceof UploadedFile) {
+                    $director['passport_photo'] = $director['passport_photo']->store("director-photos/{$customer->id}", 's3');
+                }
+
+                if ($id) {
+                    $customer->directors()->whereKey($id)->update($director);
+                    $directorIdByIndex[$index] = $id;
+                    continue;
+                }
+
+                $directorIdByIndex[$index] = $customer->directors()->create($director)->id;
+            }
+
+            foreach ($signatories as $signatory) {
+                $id = $signatory['id'] ?? null;
+                unset($signatory['id']);
+
+                $directorIndex = $signatory['director_index'] ?? null;
+                unset($signatory['director_index']);
+
+                if ($directorIndex !== null) {
+                    $signatory['director_id'] = $directorIdByIndex[$directorIndex] ?? null;
+                }
+
+                if (($signatory['passport_photo'] ?? null) instanceof UploadedFile) {
+                    $signatory['passport_photo'] = $signatory['passport_photo']->store("signatory-photos/{$customer->id}", 's3');
+                }
+
+                if (($signatory['signature'] ?? null) instanceof UploadedFile) {
+                    $signatory['signature'] = $signatory['signature']->store("signatory-signatures/{$customer->id}", 's3');
+                }
+
+                if ($id) {
+                    $customer->signatories()->whereKey($id)->update($signatory);
+                    continue;
+                }
+
+                $customer->signatories()->create($signatory);
+            }
+        });
+
+        $customer->refresh()->load(self::RELATIONS);
 
         $this->audit->log(
             action: 'updated',
@@ -213,7 +330,42 @@ class CustomerService
         return $customer;
     }
 
-    public function approve(Customer $customer): Customer
+    /**
+     * Apply the same field values to many customers at once. Each customer is updated
+     * independently — one bad id doesn't roll back the rest of the batch.
+     *
+     * @return array{updated: int[], skipped: array<int, array{customer_id: int, reason: string}>}
+     */
+    public function bulkUpdate(array $customerIds, array $data): array
+    {
+        $data = array_intersect_key($data, array_flip(self::BULK_EDITABLE_FIELDS));
+
+        $updated = [];
+        $skipped = [];
+
+        foreach ($customerIds as $customerId) {
+            $customer = Customer::find($customerId);
+
+            if (! $customer) {
+                $skipped[] = ['customer_id' => $customerId, 'reason' => 'Customer not found.'];
+                continue;
+            }
+
+            try {
+                $this->update($customer, $data);
+                $updated[] = $customer->id;
+            } catch (ValidationException $e) {
+                $skipped[] = ['customer_id' => $customerId, 'reason' => collect($e->errors())->flatten()->implode(' ')];
+            }
+        }
+
+        return ['updated' => $updated, 'skipped' => $skipped];
+    }
+
+    // $data carries the admin-picked 'account_product_id' (and optional 'account_tier_id') to
+    // open on approval — ApproveCustomerRequest requires it. No document or eligibility checks
+    // are performed; approval itself no longer depends on documents.
+    public function approve(Customer $customer, array $data = []): Customer
     {
         if ($customer->status !== 'pending') {
             throw ValidationException::withMessages([
@@ -221,16 +373,7 @@ class CustomerService
             ]);
         }
 
-        $uploadedTypes = $customer->documents()->pluck('type');
-        $missingTypes  = collect(self::REQUIRED_DOCUMENT_TYPES)->diff($uploadedTypes);
-
-        if ($missingTypes->isNotEmpty()) {
-            throw ValidationException::withMessages([
-                'documents' => ['Missing required document(s): ' . $missingTypes->implode(', ') . '.'],
-            ]);
-        }
-
-        $actor = auth()->user();
+        $actor = Auth::guard('user')->user();
 
         $customer->update([
             'status'      => 'active',
@@ -249,7 +392,15 @@ class CustomerService
             description: "Customer '{$this->displayName($customer)}' ({$customer->cif_number}) was approved by '{$actor?->username}'.",
         );
 
-        $this->accounts->openDefaultAccountForCustomer($customer);
+        if (! empty($data['account_product_id'])) {
+            $accountProduct = AccountProduct::findOrFail($data['account_product_id']);
+
+            $this->accounts->openAccountForCustomer($customer, [
+                'account_product_id' => $accountProduct->id,
+                'account_type'       => $accountProduct->product_type,
+                'account_tier_id'    => $data['account_tier_id'] ?? null,
+            ]);
+        }
 
         return $customer;
     }
@@ -262,7 +413,7 @@ class CustomerService
             ]);
         }
 
-        $actor = auth()->user();
+        $actor = Auth::guard('user')->user();
 
         $customer->update([
             'status'           => 'rejected',
@@ -285,11 +436,7 @@ class CustomerService
         return $customer;
     }
 
-    /**
-     * Banking rule: an onboarded customer is never deleted — closing is a
-     * status change (with a reason and an audit trail), never a hard or
-     * soft delete.
-     */
+    // Banking rule: an onboarded customer is never deleted — closing is a status change (with reason + audit trail), never a hard or soft delete.
     public function close(Customer $customer, string $reason): Customer
     {
         if ($customer->status === 'closed') {
@@ -299,7 +446,7 @@ class CustomerService
         }
 
         $before = $customer->status;
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         $customer->update([
             'status'          => 'closed',
@@ -340,7 +487,7 @@ class CustomerService
     public function updateStatus(Customer $customer, string $status): Customer
     {
         $before = $customer->status;
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         $customer->update(['status' => $status]);
         $customer->refresh();
@@ -360,7 +507,7 @@ class CustomerService
     private function toggleFlag(Customer $customer, string $field, string $label): Customer
     {
         $before = (bool) $customer->{$field};
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         $customer->update([$field => ! $before]);
         $customer->refresh();
@@ -379,7 +526,7 @@ class CustomerService
 
     private function displayName(Customer $customer): string
     {
-        return $customer->customer_type === 'business'
+        return in_array($customer->customer_type, CustomerType::businessLike(), true)
             ? (string) $customer->business_name
             : trim("{$customer->first_name} {$customer->last_name}");
     }

@@ -27,8 +27,10 @@ return new class extends Migration
             $table->string('landmark')->nullable();
             $table->string('longitude')->nullable();
             $table->string('latitude')->nullable();
-            $table->string('is_primary')->nullable();
+            $table->enum('status', ['current', 'previous'])->default('current');
             $table->timestamps();
+
+            $table->index(['customer_id', 'status']);
         });
     }
 

@@ -7,6 +7,7 @@ namespace App\Services\Currency;
 use App\Models\Currency;
 use App\Services\Audit\AuditService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -28,7 +29,7 @@ class CurrencyService
 
     public function create(array $data): Currency
     {
-        $actor = auth()->user();
+        $actor = Auth::guard('user')->user();
 
         $data['code'] = $this->normalizeCode($data['code']);
         $data['name'] = $this->normalizeName($data['name']);
@@ -59,7 +60,7 @@ class CurrencyService
     public function update(Currency $currency, array $data): Currency
     {
         $before = $currency->toArray();
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         if (isset($data['code'])) {
             $data['code'] = $this->normalizeCode($data['code']);
@@ -100,7 +101,7 @@ class CurrencyService
     public function updateStatus(Currency $currency, string $status): Currency
     {
         $before = $currency->status;
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         $currency->update(['status' => $status]);
         $currency->refresh();
@@ -121,7 +122,7 @@ class CurrencyService
     {
         $name  = $currency->name;
         $code  = $currency->code;
-        $actor = auth()->user();
+        $actor = Auth::guard('user')->user();
 
         $currency->delete();
 

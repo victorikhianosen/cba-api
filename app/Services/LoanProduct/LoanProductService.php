@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\LoanProduct;
 
+use App\Enums\GeneralLedger\GeneralLedgerStatus;
 use App\Enums\Product\LoanProductFinancialAccountType;
 use App\Models\Currency;
 use App\Models\GeneralLedger;
@@ -11,6 +12,7 @@ use App\Models\LoanProduct;
 use App\Models\ProductToGlAccountMapping;
 use App\Services\Audit\AuditService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -38,7 +40,7 @@ class LoanProductService
 
     public function create(array $data): LoanProduct
     {
-        $actor = auth()->user();
+        $actor = Auth::guard('user')->user();
 
         $loanProduct = DB::transaction(function () use ($data) {
             $currency = Currency::findOrFail($data['currency_id']);
@@ -51,7 +53,7 @@ class LoanProductService
             $data['code']            = $this->generateProductCode();
             $data['currency_code']   = $currency->code;
             $data['currency_digits'] = $data['currency_digits'] ?? 2;
-            $data['created_by']      = auth()->id();
+            $data['created_by']      = Auth::guard('user')->id();
 
             $loanProduct = LoanProduct::create($data)->refresh();
 
@@ -63,6 +65,8 @@ class LoanProductService
                     'financial_account_type'      => $type->value,
                     'financial_account_type_name' => $type->name,
                 ]);
+
+                GeneralLedger::whereKey($mapping['general_ledger_id'])->update(['status' => GeneralLedgerStatus::ASSIGNED->value]);
             }
 
             return $loanProduct->load('generalLedgerMappings.generalLedger');
@@ -82,7 +86,7 @@ class LoanProductService
     public function update(LoanProduct $loanProduct, array $data): LoanProduct
     {
         $before = $loanProduct->toArray();
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         unset(
             $data['code'],
@@ -119,11 +123,11 @@ class LoanProductService
         }
 
         $before = $loanProduct->status;
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         $loanProduct->update([
             'status'      => 'active',
-            'approved_by' => auth()->id(),
+            'approved_by' => Auth::guard('user')->id(),
             'approved_at' => now(),
         ]);
         $loanProduct->refresh();
@@ -143,7 +147,7 @@ class LoanProductService
     public function updateStatus(LoanProduct $loanProduct, string $status): LoanProduct
     {
         $before = $loanProduct->status;
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         $loanProduct->update(['status' => $status]);
         $loanProduct->refresh();
@@ -164,7 +168,7 @@ class LoanProductService
     {
         $name  = $loanProduct->name;
         $code  = $loanProduct->code;
-        $actor = auth()->user();
+        $actor = Auth::guard('user')->user();
 
         $loanProduct->delete();
 

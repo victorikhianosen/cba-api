@@ -14,8 +14,7 @@ class Signatory extends Model
     protected function casts(): array
     {
         return [
-            'dob'                => 'date',
-            'transaction_limit'  => 'integer',
+            'dob' => 'date',
         ];
     }
 

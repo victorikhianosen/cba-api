@@ -16,8 +16,6 @@ class Business extends Model
         return [
             'registration_date'  => 'date',
             'incorporation_date' => 'date',
-            'annual_turnover'    => 'integer',
-            'monthly_turnover'   => 'integer',
         ];
     }
 

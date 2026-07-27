@@ -27,7 +27,7 @@ Route::prefix('auth')->controller(AuthController::class)->group(function () {
     Route::post('2fa/verify', 'verifyTwoFactor');
 });
 
-Route::middleware(['auth:user'])->group(function () {
+Route::middleware(['user'])->group(function () {
     Route::prefix('banks')->controller(BankController::class)->group(function () {
         Route::get('/', 'index')->middleware('permission:view_banks');
         Route::post('/', 'store')->middleware('permission:create_banks');
@@ -133,6 +133,7 @@ Route::middleware(['auth:user'])->group(function () {
     Route::prefix('customers')->controller(CustomerController::class)->group(function () {
         Route::get('/', 'index')->middleware('permission:view_customers');
         Route::post('/', 'store')->middleware('permission:create_customers');
+        Route::post('bulk', 'bulkUpdate')->middleware('permission:update_customers');
         Route::get('{id}', 'show')->middleware('permission:view_customers');
         Route::put('{id}', 'update')->middleware('permission:update_customers');
         Route::post('{id}/approve', 'approve')->middleware('permission:update_customers');
@@ -158,6 +159,7 @@ Route::middleware(['auth:user'])->group(function () {
     Route::prefix('general-ledgers')->controller(GeneralLedgerController::class)->group(function () {
         Route::get('/', 'index')->middleware('permission:view_general_ledgers');
         Route::post('/', 'store')->middleware('permission:create_general_ledgers');
+        Route::get('available', 'available')->middleware('permission:view_general_ledgers');
         Route::get('{id}', 'show')->middleware('permission:view_general_ledgers');
         Route::put('{id}', 'update')->middleware('permission:update_general_ledgers');
         Route::delete('{id}', 'destroy')->middleware('permission:delete_general_ledgers');

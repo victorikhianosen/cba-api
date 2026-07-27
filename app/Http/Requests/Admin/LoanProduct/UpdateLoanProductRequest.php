@@ -22,6 +22,12 @@ class UpdateLoanProductRequest extends FormRequest
                 'name' => strtolower(str_replace(' ', '_', trim($this->name))),
             ]);
         }
+
+        if ($this->filled('interest_calculation_days_in_year')) {
+            $this->merge([
+                'interest_calculation_days_in_year' => (string) $this->interest_calculation_days_in_year,
+            ]);
+        }
     }
 
     public function rules(): array

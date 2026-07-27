@@ -9,21 +9,13 @@ use App\Enums\GeneralLedger\GeneralLedgerStatus;
 use App\Enums\Transaction\DebitCredit;
 use App\Models\GeneralLedger;
 use App\Models\JournalEntry;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
-/**
- * The single place allowed to mutate general_ledgers.balance and write the
- * matching journal_entries row — mirrors AccountPostingService for the GL
- * side of a posting. Callers must invoke debit()/credit() from inside their
- * own DB::transaction() so lockForUpdate() holds until commit.
- */
+// The single place allowed to mutate general_ledgers.balance and write the matching journal_entries row (GL-side mirror of AccountPostingService). Callers must invoke debit()/credit() from inside their own DB::transaction() so lockForUpdate() holds until commit.
 class GeneralLedgerPostingService
 {
-    /**
-     * Classifications whose normal balance increases on a debit (assets and
-     * expenses). Liability/equity/income accounts increase on credit
-     * instead — the mirror of this list.
-     */
+    // Classifications whose normal balance increases on a debit (asset/expense); liability/equity/income increase on credit instead.
     private const NORMAL_DEBIT_CLASSIFICATIONS = [
         GeneralLedgerClassification::ASSET,
         GeneralLedgerClassification::EXPENSE,
@@ -39,20 +31,9 @@ class GeneralLedgerPostingService
         return $this->post($generalLedger, DebitCredit::CREDIT, $leg);
     }
 
-    /**
-     * Whether a debit of $amount is safe for this GL's classification.
-     * Debiting an asset/expense GL only increases its (debit-normal)
-     * balance, so there's no ceiling. Debiting a liability/equity/income GL
-     * decreases its (credit-normal) balance, so it can't go below zero.
-     */
+    // A GL used as a posting's source can never move out more than it currently holds, regardless of classification — the balance is a hard ceiling, not just an accounting-direction nicety.
     public function hasSufficientBalance(GeneralLedger $generalLedger, string $amount): bool
     {
-        $classification = GeneralLedgerClassification::from($generalLedger->classification);
-
-        if (in_array($classification, self::NORMAL_DEBIT_CLASSIFICATIONS, true)) {
-            return true;
-        }
-
         return bccomp($amount, (string) $generalLedger->balance, 4) <= 0;
     }
 
@@ -86,7 +67,7 @@ class GeneralLedgerPostingService
 
         $generalLedger->update(['balance' => $balanceAfter]);
 
-        return JournalEntry::create([
+        $journalEntry = JournalEntry::create([
             'financial_transaction_id' => $leg['financial_transaction_id'],
             'entry_group_id'           => $leg['entry_group_id'],
             'general_ledger_id'        => $generalLedger->id,
@@ -102,5 +83,23 @@ class GeneralLedgerPostingService
             'narration'                => $leg['narration'] ?? null,
             'created_by'               => $leg['created_by'] ?? null,
         ]);
+
+        Log::channel('general_ledger')->info('gl_journal_entry', [
+            'journal_entry_id'         => $journalEntry->id,
+            'financial_transaction_id' => $leg['financial_transaction_id'],
+            'entry_group_id'           => $leg['entry_group_id'],
+            'general_ledger_id'        => $generalLedger->id,
+            'gl_code'                  => $generalLedger->gl_code,
+            'gl_name'                  => $generalLedger->name,
+            'entry_type'               => $entryType->value,
+            'amount'                   => $amount,
+            'balance_before'           => $balanceBefore,
+            'balance_after'            => $balanceAfter,
+            'currency_id'              => $leg['currency_id'],
+            'posting_date'             => $journalEntry->posting_date,
+            'created_by'               => $leg['created_by'] ?? null,
+        ]);
+
+        return $journalEntry;
     }
 }

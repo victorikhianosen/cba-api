@@ -51,9 +51,6 @@ return new class extends Migration
 
             $table->text('address')->nullable();
 
-
-            $table->unsignedBigInteger('transaction_limit')->nullable();
-
             $table->enum('status', [
                 'active',
                 'inactive',

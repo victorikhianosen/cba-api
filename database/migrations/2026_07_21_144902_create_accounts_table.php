@@ -47,6 +47,8 @@ return new class extends Migration
             $table->string('account_number', 20)
                 ->unique();
 
+            $table->boolean('primary_account')->default(false);
+
             $table->string('status')->default('active');
 
             $table->boolean('pnd')->default(false);

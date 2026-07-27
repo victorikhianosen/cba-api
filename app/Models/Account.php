@@ -20,6 +20,7 @@ class Account extends Model
             'lien_balance'        => 'decimal:6',
             'pnd'                 => 'boolean',
             'pnc'                 => 'boolean',
+            'primary_account'     => 'boolean',
             'last_transaction_at' => 'datetime',
             'approved_at'         => 'datetime',
             'rejected_at'         => 'datetime',

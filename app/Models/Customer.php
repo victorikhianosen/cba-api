@@ -5,14 +5,19 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Hidden;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Laravel\Sanctum\HasApiTokens;
 
-#[Hidden(['password', 'panic_password', 'pin'])]
-class Customer extends Model
+// Authenticatable (not a plain Model) so the "customer" guard's Eloquent provider can log
+// customers in on their own token, separate from the "user" (admin/staff) guard.
+#[Hidden(['password', 'panic_password', 'pin', 'otp'])]
+class Customer extends Authenticatable
 {
+    use HasApiTokens;
+
     protected $guarded = [];
 
     protected function casts(): array
@@ -26,6 +31,7 @@ class Customer extends Model
             'enable_email'           => 'boolean',
             'enable_reset_password'  => 'boolean',
             'enable_panic_password'  => 'boolean',
+            'otp_verified'           => 'boolean',
             'id_verified'            => 'boolean',
             'face_verified'          => 'boolean',
             'utility_verified'       => 'boolean',
@@ -73,6 +79,11 @@ class Customer extends Model
     public function addresses(): HasMany
     {
         return $this->hasMany(Address::class);
+    }
+
+    public function currentAddress(): HasOne
+    {
+        return $this->hasOne(Address::class)->where('status', 'current');
     }
 
     public function nextOfKin(): HasMany

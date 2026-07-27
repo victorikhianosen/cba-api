@@ -9,11 +9,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class AuditTrailService
 {
-    /**
-     * Columns searched against as free text when a `search` term is given —
-     * covers every human-readable field on the audit trail, including the
-     * JSON before/after snapshots (MySQL allows LIKE on JSON columns).
-     */
+    // Columns searched as free text when a `search` term is given — covers every human-readable field, including JSON before/after snapshots (MySQL allows LIKE on JSON).
     private const SEARCHABLE_COLUMNS = [
         'description', 'module', 'actions', 'performed_by_name', 'performed_by_type',
         'ip', 'agent', 'channel', 'tenant_code', 'before_change', 'after_change',

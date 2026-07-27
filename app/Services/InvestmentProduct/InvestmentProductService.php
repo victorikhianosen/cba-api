@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\InvestmentProduct;
 
+use App\Enums\GeneralLedger\GeneralLedgerStatus;
 use App\Enums\Product\AccountProductType;
 use App\Models\Currency;
 use App\Models\GeneralLedger;
@@ -11,6 +12,7 @@ use App\Models\InvestmentProduct;
 use App\Models\ProductToGlAccountMapping;
 use App\Services\Audit\AuditService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -38,7 +40,7 @@ class InvestmentProductService
 
     public function create(array $data): InvestmentProduct
     {
-        $actor = auth()->user();
+        $actor = Auth::guard('user')->user();
 
         $investmentProduct = DB::transaction(function () use ($data) {
             $currency = Currency::findOrFail($data['currency_id']);
@@ -51,7 +53,7 @@ class InvestmentProductService
             $data['code']            = $this->generateProductCode();
             $data['currency_code']   = $currency->code;
             $data['currency_digits'] = $data['currency_digits'] ?? 2;
-            $data['created_by']      = auth()->id();
+            $data['created_by']      = Auth::guard('user')->id();
 
             $investmentProduct = InvestmentProduct::create($data)->refresh();
 
@@ -63,6 +65,8 @@ class InvestmentProductService
                     'financial_account_type'      => $type->value,
                     'financial_account_type_name' => $type->name,
                 ]);
+
+                GeneralLedger::whereKey($mapping['general_ledger_id'])->update(['status' => GeneralLedgerStatus::ASSIGNED->value]);
             }
 
             return $investmentProduct->load('generalLedgerMappings.generalLedger');
@@ -82,7 +86,7 @@ class InvestmentProductService
     public function update(InvestmentProduct $investmentProduct, array $data): InvestmentProduct
     {
         $before = $investmentProduct->toArray();
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         unset(
             $data['code'],
@@ -119,11 +123,11 @@ class InvestmentProductService
         }
 
         $before = $investmentProduct->status;
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         $investmentProduct->update([
             'status'      => 'active',
-            'approved_by' => auth()->id(),
+            'approved_by' => Auth::guard('user')->id(),
             'approved_at' => now(),
         ]);
         $investmentProduct->refresh();
@@ -143,7 +147,7 @@ class InvestmentProductService
     public function updateStatus(InvestmentProduct $investmentProduct, string $status): InvestmentProduct
     {
         $before = $investmentProduct->status;
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         $investmentProduct->update(['status' => $status]);
         $investmentProduct->refresh();
@@ -164,7 +168,7 @@ class InvestmentProductService
     {
         $name  = $investmentProduct->name;
         $code  = $investmentProduct->code;
-        $actor = auth()->user();
+        $actor = Auth::guard('user')->user();
 
         $investmentProduct->delete();
 

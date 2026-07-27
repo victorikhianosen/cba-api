@@ -6,6 +6,7 @@ namespace App\Services\Audit;
 
 use App\Models\AuditTrail;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 class AuditService
@@ -19,7 +20,7 @@ class AuditService
         ?string $description = null,
         ?Model $performer = null,
     ): AuditTrail {
-        $actor = $performer ?? auth()->user();
+        $actor = $performer ?? Auth::guard('user')->user();
 
         return AuditTrail::create([
             'performed_by_type' => $this->resolveActorType($actor),
@@ -50,11 +51,7 @@ class AuditService
         );
     }
 
-    /**
-     * Derives a capitalized actor type label straight from the actor's own
-     * class name (e.g. User -> "User", Customer -> "Customer",
-     * Merchant -> "Merchant") — no manual map to keep in sync.
-     */
+    // Derives the actor type label straight from the actor's own class name (e.g. User -> "User") — no manual map to keep in sync.
     private function resolveActorType(?Model $actor): string
     {
         if (! $actor) {

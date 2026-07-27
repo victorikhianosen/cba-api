@@ -123,6 +123,31 @@ return [
             'handler' => NullHandler::class,
         ],
 
+        // Dedicated audit/reconciliation trails — one row per financial_transactions/transactions/journal_entries write, separate from laravel.log so they can be grepped, shipped, or archived independently. Never auto-deleted (days: 0) since these are audit records, not debug noise.
+        'transactions' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/transactions/transaction.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 0,
+            'replace_placeholders' => true,
+        ],
+
+        'accounts' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/accounts/account.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 0,
+            'replace_placeholders' => true,
+        ],
+
+        'general_ledger' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/general-ledger/general-ledger.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 0,
+            'replace_placeholders' => true,
+        ],
+
         'emergency' => [
             'path' => storage_path('logs/laravel.log'),
         ],

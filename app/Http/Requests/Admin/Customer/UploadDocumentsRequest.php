@@ -14,13 +14,7 @@ class UploadDocumentsRequest extends FormRequest
         return true;
     }
 
-    /**
-     * Every uploaded file becomes its own document — whatever field name the
-     * caller sends it under becomes that document's type/title, so the rules
-     * here are built dynamically from whichever file fields are present
-     * rather than a fixed list (see the "Type validation" decision: any
-     * field name is accepted).
-     */
+    // Every uploaded file becomes its own document — the field name it's sent under becomes that document's type/title, so rules are built dynamically per request.
     public function rules(): array
     {
         return collect($this->allFiles())

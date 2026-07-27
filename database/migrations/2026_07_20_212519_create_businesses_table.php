@@ -45,13 +45,6 @@ return new class extends Migration
             $table->string('business_email')->nullable();
             $table->string('website')->nullable();
 
-            $table->unsignedBigInteger('annual_turnover')->nullable();
-            $table->unsignedBigInteger('monthly_turnover')->nullable();
-
-            $table->unsignedInteger('number_of_employees')->nullable();
-
-            $table->string('source_of_funds')->nullable();
-
             $table->string('status')->default('pending');
 
             $table->index('business_name');

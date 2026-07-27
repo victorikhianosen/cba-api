@@ -18,9 +18,7 @@ enum AccountStatus: string
     case DECEASED_HOLD = 'deceased_hold';
     case ESCHEATED = 'escheated';
 
-    /**
-     * @return string[]
-     */
+    /** @return string[] */
     public static function values(): array
     {
         return array_map(fn (self $case) => $case->value, self::cases());

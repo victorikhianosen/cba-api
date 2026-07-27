@@ -13,9 +13,7 @@ enum Channel: string
     case API = 'api';
     case ATM = 'atm';
 
-    /**
-     * @return string[]
-     */
+    /** @return string[] */
     public static function values(): array
     {
         return array_map(fn (self $case) => $case->value, self::cases());

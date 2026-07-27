@@ -6,6 +6,7 @@ namespace App\Http\Resources\Admin\Customer;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Storage;
 
 class DirectorResource extends JsonResource
 {
@@ -33,7 +34,8 @@ class DirectorResource extends JsonResource
             'tin'               => $this->tin,
             'id_type'           => $this->id_type,
             'id_number'         => $this->id_number,
-            'passport_photo'    => $this->passport_photo,
+            'passport_photo'     => $this->passport_photo,
+            'passport_photo_url' => $this->passport_photo ? Storage::disk('s3')->url($this->passport_photo) : null,
             'is_primary'        => $this->is_primary,
             'status'            => $this->status,
             'remarks'           => $this->remarks,

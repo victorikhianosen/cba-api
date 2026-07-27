@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\AccountProduct;
 
+use App\Enums\GeneralLedger\GeneralLedgerStatus;
 use App\Enums\Product\AccountProductType;
 use App\Models\AccountProduct;
 use App\Models\Currency;
@@ -11,6 +12,7 @@ use App\Models\GeneralLedger;
 use App\Models\ProductToGlAccountMapping;
 use App\Services\Audit\AuditService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -28,9 +30,7 @@ class AccountProductService
         private AuditService $audit,
     ) {}
 
-    /**
-     * @param string|string[]|null $productType
-     */
+    /** @param string|string[]|null $productType */
     public function list(int $perPage = 15, string|array|null $productType = null): LengthAwarePaginator
     {
         return AccountProduct::query()
@@ -43,9 +43,7 @@ class AccountProductService
             ->withQueryString();
     }
 
-    /**
-     * @param string|string[]|null $productType
-     */
+    /** @param string|string[]|null $productType */
     public function find(int $id, string|array|null $productType = null): AccountProduct
     {
         return AccountProduct::with('generalLedgerMappings.generalLedger')
@@ -57,7 +55,7 @@ class AccountProductService
 
     public function create(array $data): AccountProduct
     {
-        $actor = auth()->user();
+        $actor = Auth::guard('user')->user();
 
         $accountProduct = DB::transaction(function () use ($data) {
             $currency = Currency::findOrFail($data['currency_id']);
@@ -69,7 +67,7 @@ class AccountProductService
 
             $data['code']            = $this->generateProductCode($data['product_type']);
             $data['currency_code']   = $currency->code;
-            $data['created_by']      = auth()->id();
+            $data['created_by']      = Auth::guard('user')->id();
 
             $accountProduct = AccountProduct::create($data)->refresh();
 
@@ -81,6 +79,8 @@ class AccountProductService
                     'financial_account_type'      => $type->value,
                     'financial_account_type_name' => $type->name,
                 ]);
+
+                GeneralLedger::whereKey($mapping['general_ledger_id'])->update(['status' => GeneralLedgerStatus::ASSIGNED->value]);
             }
 
             return $accountProduct->load('generalLedgerMappings.generalLedger');
@@ -100,7 +100,7 @@ class AccountProductService
     public function update(AccountProduct $accountProduct, array $data): AccountProduct
     {
         $before = $accountProduct->toArray();
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         unset(
             $data['code'],
@@ -137,11 +137,11 @@ class AccountProductService
         }
 
         $before = $accountProduct->status;
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         $accountProduct->update([
             'status'      => 'active',
-            'approved_by' => auth()->id(),
+            'approved_by' => Auth::guard('user')->id(),
             'approved_at' => now(),
         ]);
         $accountProduct->refresh();
@@ -161,7 +161,7 @@ class AccountProductService
     public function updateStatus(AccountProduct $accountProduct, string $status): AccountProduct
     {
         $before = $accountProduct->status;
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         $accountProduct->update(['status' => $status]);
         $accountProduct->refresh();
@@ -182,7 +182,7 @@ class AccountProductService
     {
         $name  = $accountProduct->name;
         $code  = $accountProduct->code;
-        $actor = auth()->user();
+        $actor = Auth::guard('user')->user();
 
         $accountProduct->delete();
 
@@ -248,9 +248,7 @@ class AccountProductService
         }
     }
 
-    /**
-     * @return AccountProductType[]
-     */
+    /** @return AccountProductType[] */
     private function requiredFinancialAccountTypes(bool $allowOverdraft = false): array
     {
         $required = AccountProductType::required();

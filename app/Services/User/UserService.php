@@ -9,6 +9,7 @@ use App\Services\Audit\AuditService;
 use App\Services\Communication\CommunicationService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
@@ -121,7 +122,7 @@ class UserService
         ]);
         $user->refresh();
 
-        $actor = auth()->user();
+        $actor = Auth::guard('user')->user();
 
         $this->audit->log(
             action: 'password_reset',
@@ -241,7 +242,7 @@ class UserService
     public function assignRoles(User $user, array $roles): User
     {
         $before = $user->roles->pluck('name');
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         $user->assignRole($this->resolveRoles($roles));
         $user->refresh()->load(['roles', 'permissions']);
@@ -261,7 +262,7 @@ class UserService
     public function removeRoles(User $user, array $roles): User
     {
         $before = $user->roles->pluck('name');
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         $user->removeRole($this->resolveRoles($roles));
         $user->refresh()->load(['roles', 'permissions']);
@@ -285,10 +286,7 @@ class UserService
         return $user->refresh()->load('permissions');
     }
 
-    /**
-     * Resolve role names to `user`-guard model instances so Spatie's guard
-     * auto-detection (which defaults to `web` for this app) is bypassed.
-     */
+    // Resolves role names to `user`-guard model instances so Spatie's guard auto-detection (defaults to `web` here) is bypassed.
     private function resolveRoles(array $names): \Illuminate\Support\Collection
     {
         return Role::whereIn('name', $names)->where('guard_name', 'user')->get();

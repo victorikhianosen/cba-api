@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
-use App\Enums\LoanProductFinancialAccountType;
-use App\Enums\AccountProductType;
+use App\Enums\Product\AccountProductType;
+use App\Enums\Product\LoanProductFinancialAccountType;
 use App\Models\AccountProduct;
 use App\Models\Currency;
 use App\Models\GeneralLedger;
@@ -131,7 +131,7 @@ class AccountProductSeeder extends Seeder
 
     /**
      * @param AccountProductType[]|LoanProductFinancialAccountType[] $types
-     * @param array<string, string> $glNameByType Case name => GL name.
+     * @param array<string, string> $glNameByType
      */
     private function mappingsFor(array $types, array $glNameByType): array
     {

@@ -15,7 +15,7 @@ return new class extends Migration
     {
          Schema::create('postings', function (Blueprint $table) {
             $table->id();
-            $table->string('posting_reference')->unique();
+            $table->string('reference')->unique();
             $table->string('transaction_reference')->index();
             $table->string('idempotency_key')->unique();
             $table->string('module')->nullable();
@@ -35,9 +35,8 @@ return new class extends Migration
             $table->decimal('tax', 20, 4)->default(0);
             $table->decimal('total_amount', 20, 4)->default(0);
             $table->string('priority')->default('normal');
-            $table->string('approval_status')->default('pending');
+            $table->string('status')->default('pending');
             $table->unsignedInteger('approval_level')->default(0);
-            $table->string('workflow_status')->default('pending');
             $table->json('payload')->nullable();
             $table->json('metadata')->nullable();
             $table->string('device_id')->nullable();
@@ -56,8 +55,7 @@ return new class extends Migration
 
             $table->index(['source_type', 'source_id']);
             $table->index(['destination_type', 'destination_id']);
-            $table->index('approval_status');
-            $table->index('workflow_status');
+            $table->index('status');
             $table->index('created_at');
         });
     }

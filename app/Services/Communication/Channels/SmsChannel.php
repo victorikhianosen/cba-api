@@ -27,11 +27,7 @@ class SmsChannel implements CommunicationChannel
         }
     }
 
-    /**
-     * Termii expects international format without a leading '+' (e.g.
-     * 2348012345678). Local numbers are normalized assuming a Nigerian
-     * '0' prefix, matching this app's customer base.
-     */
+    // Termii expects international format without a leading '+' (e.g. 2348012345678); local numbers are normalized assuming a Nigerian '0' prefix.
     private function normalizeRecipient(string $recipient): string
     {
         $digits = preg_replace('/\D/', '', $recipient);

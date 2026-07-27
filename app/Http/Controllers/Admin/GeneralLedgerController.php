@@ -33,6 +33,16 @@ class GeneralLedgerController extends Controller
         );
     }
 
+    public function available(Request $request): JsonResponse
+    {
+        $generalLedgers = $this->generalLedgers->available($request->integer('per_page', 15));
+
+        return $this->success(
+            message: 'Available general ledgers retrieved successfully.',
+            data: GeneralLedgerResource::collection($generalLedgers),
+        );
+    }
+
     public function show(int $id): JsonResponse
     {
         $generalLedger = $this->generalLedgers->find($id);

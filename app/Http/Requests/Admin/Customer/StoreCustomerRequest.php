@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Admin\Customer;
 
-use App\Rules\StrictInteger;
+use App\Enums\Customer\CustomerType;
+use App\Enums\Customer\LegalForm;
+use App\Http\Requests\Admin\Customer\Concerns\HasNestedCustomerRules;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreCustomerRequest extends FormRequest
 {
+    use HasNestedCustomerRules;
+
     public function authorize(): bool
     {
         return true;
@@ -16,23 +21,31 @@ class StoreCustomerRequest extends FormRequest
 
     public function rules(): array
     {
+        $businessLikeTypes = implode(',', CustomerType::businessLike());
+        $isCorporate        = $this->input('customer_type') === CustomerType::CORPORATE->value;
+
+        // A business-like customer whose business_type is "not_registered" is captured just like
+        // an individual — no signatories/directors required, only the normal personal fields + business block.
+        $isUnregisteredBusiness = in_array($this->input('customer_type'), CustomerType::businessLike(), true)
+            && $this->input('business.business_type') === 'not_registered';
+
         return [
             'branch_id'           => ['nullable', 'integer', 'exists:branches,id'],
             'account_officer_id'  => ['nullable', 'integer', 'exists:account_officers,id'],
-            'customer_type'       => ['sometimes', 'in:individual,business,minor'],
+            'customer_type'       => ['sometimes', Rule::in(CustomerType::values())],
+            'legal_form'          => ['sometimes', 'nullable', Rule::in(LegalForm::values())],
             'guardian_id'         => ['nullable', 'integer', 'exists:customers,id'],
 
             'title'          => ['nullable', 'string', 'max:20'],
-            'first_name'     => ['required_if:customer_type,individual,minor,business', 'nullable', 'string', 'max:255'],
+            'first_name'     => ["required_if:customer_type,individual,minor,{$businessLikeTypes}", 'nullable', 'string', 'max:255'],
             'middle_name'    => ['nullable', 'string', 'max:255'],
-            'last_name'      => ['required_if:customer_type,individual,minor,business', 'nullable', 'string', 'max:255'],
+            'last_name'      => ["required_if:customer_type,individual,minor,{$businessLikeTypes}", 'nullable', 'string', 'max:255'],
 
             'phone'    => ['required', 'string', 'max:20', 'unique:customers,phone'],
             'email'    => ['nullable', 'email', 'max:255', 'unique:customers,email'],
             'username' => ['nullable', 'string', 'max:255', 'unique:customers,username'],
 
             'password'       => ['nullable', 'string', 'min:6'],
-            'panic_password' => ['nullable', 'string', 'min:6'],
             'pin'            => ['nullable', 'digits:4'],
 
             'marital_status' => ['nullable', 'in:single,married,divorced,widowed'],
@@ -45,105 +58,51 @@ class StoreCustomerRequest extends FormRequest
             'bvn'         => ['nullable', 'digits:11', 'unique:customers,bvn'],
             'nin_number'  => ['nullable', 'digits:11', 'unique:customers,nin_number'],
             'tin'         => ['nullable', 'string', 'max:50', 'unique:customers,tin'],
+            'rc_number'   => ['nullable', 'string', 'max:50', 'unique:customers,rc_number'],
 
-            'is_staff' => ['sometimes', 'boolean'],
+            'is_staff' => ['sometimes', 'nullable', 'boolean'],
 
             'mother_maiden_name' => ['nullable', 'string', 'max:255'],
             'spouse_name'        => ['nullable', 'string', 'max:255'],
 
-           
+            'device_token' => ['nullable', 'string', 'max:255'],
+            'device_id'    => ['nullable', 'string', 'max:255'],
+
             'profile_picture' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'utility_bill'    => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
+            'valid_id'        => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
+            'business_logo'   => ["prohibited_unless:customer_type,{$businessLikeTypes}", 'nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
 
-            // Addresses — shared by individual and business customers.
-            'addresses'                  => ['sometimes', 'nullable', 'array'],
-            'addresses.*.type'           => ['nullable', 'string', 'max:50'],
-            'addresses.*.address'        => ['required', 'string', 'max:255'],
-            'addresses.*.lgs'            => ['nullable', 'string', 'max:100'],
-            'addresses.*.city'           => ['nullable', 'string', 'max:100'],
-            'addresses.*.state'          => ['nullable', 'string', 'max:100'],
-            'addresses.*.country'        => ['nullable', 'string', 'max:100'],
-            'addresses.*.landmark'       => ['nullable', 'string', 'max:255'],
-            'addresses.*.longitude'      => ['nullable', 'string', 'max:50'],
-            'addresses.*.latitude'       => ['nullable', 'string', 'max:50'],
-            'addresses.*.is_primary'     => ['sometimes', 'boolean'],
+            // Address — one per customer (one-to-one), shared by every customer type.
+            'address' => ['sometimes', 'nullable', 'array'],
+            ...$this->addressRules(null),
 
             // Next of kin — individual/minor customers only.
-            'next_of_kin'                    => ['sometimes', 'nullable', 'array', 'prohibited_if:customer_type,business'],
-            'next_of_kin.*.title'            => ['nullable', 'string', 'max:20'],
-            'next_of_kin.*.first_name'       => ['required', 'string', 'max:255'],
-            'next_of_kin.*.middle_name'      => ['nullable', 'string', 'max:255'],
-            'next_of_kin.*.last_name'        => ['required', 'string', 'max:255'],
-            'next_of_kin.*.relationship'     => ['required', 'string', 'max:100'],
-            'next_of_kin.*.gender'           => ['nullable', 'in:male,female,other'],
-            'next_of_kin.*.dob'              => ['nullable', 'date', 'before:today'],
-            'next_of_kin.*.phone'            => ['required', 'string', 'max:20'],
-            'next_of_kin.*.email'            => ['nullable', 'email', 'max:255'],
-            'next_of_kin.*.occupation'       => ['nullable', 'string', 'max:255'],
-            'next_of_kin.*.address'          => ['nullable', 'string', 'max:255'],
+            'next_of_kin' => ['sometimes', 'nullable', 'array', "prohibited_if:customer_type,{$businessLikeTypes}"],
+            ...$this->nextOfKinRules(null),
 
-            // Business — business customers only.
-            'business'                        => ['required_if:customer_type,business', 'prohibited_unless:customer_type,business', 'array'],
-            'business.business_name'          => ['required_if:customer_type,business', 'string', 'max:255'],
-            'business.trading_name'           => ['nullable', 'string', 'max:255'],
-            'business.business_type'          => ['nullable', 'string', 'max:100'],
-            'business.registration_number'    => ['nullable', 'string', 'max:100', 'unique:businesses,registration_number'],
-            'business.registration_date'      => ['nullable', 'date'],
-            'business.incorporation_date'     => ['nullable', 'date'],
-            'business.nature_of_business'     => ['nullable', 'string', 'max:255'],
-            'business.industry'               => ['nullable', 'string', 'max:255'],
-            'business.tin'                    => ['nullable', 'string', 'max:50', 'unique:businesses,tin'],
-            'business.vat_number'             => ['nullable', 'string', 'max:50', 'unique:businesses,vat_number'],
-            'business.business_phone'         => ['nullable', 'string', 'max:20'],
-            'business.business_email'         => ['nullable', 'email', 'max:255'],
-            'business.website'                => ['nullable', 'string', 'max:255'],
-            'business.annual_turnover'        => ['nullable', 'integer', new StrictInteger, 'min:0'],
-            'business.monthly_turnover'       => ['nullable', 'integer', new StrictInteger, 'min:0'],
-            'business.number_of_employees'    => ['nullable', 'integer', 'min:0'],
-            'business.source_of_funds'        => ['nullable', 'string', 'max:255'],
+            // Business — business-like customers only.
+            'business' => ["required_if:customer_type,{$businessLikeTypes}", "prohibited_unless:customer_type,{$businessLikeTypes}", 'array'],
+            ...$this->businessRules(null),
 
-            // Directors
-            'directors'                      => ['required_if:customer_type,business', 'prohibited_unless:customer_type,business', 'array', 'min:1'],
-            'directors.*.title'              => ['nullable', 'string', 'max:20'],
-            'directors.*.first_name'         => ['required', 'string', 'max:255'],
-            'directors.*.middle_name'        => ['nullable', 'string', 'max:255'],
-            'directors.*.last_name'          => ['required', 'string', 'max:255'],
-            'directors.*.position'           => ['required', 'string', 'max:100'],
-            'directors.*.phone'              => ['required', 'string', 'max:20'],
-            'directors.*.email'              => ['nullable', 'email', 'max:255'],
-            'directors.*.gender'             => ['nullable', 'in:male,female'],
-            'directors.*.dob'                => ['nullable', 'date', 'before:today'],
-            'directors.*.nationality'        => ['nullable', 'string', 'max:100'],
-            'directors.*.address'            => ['nullable', 'string'],
-            'directors.*.occupation'         => ['nullable', 'string', 'max:255'],
-            'directors.*.appointment_date'   => ['nullable', 'date'],
-            'directors.*.resignation_date'   => ['nullable', 'date'],
-            'directors.*.bvn'                => ['nullable', 'digits:11'],
-            'directors.*.nin'                => ['nullable', 'digits:11'],
-            'directors.*.tin'                => ['nullable', 'string', 'max:50'],
-            'directors.*.id_type'            => ['nullable', 'string', 'max:50'],
-            'directors.*.id_number'          => ['nullable', 'string', 'max:100'],
-            'directors.*.passport_photo'     => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
-            'directors.*.is_primary'         => ['sometimes', 'boolean'],
+            // Directors — corporate customers only (not business/government), and not required
+            // when the corporate's business_type is not_registered.
+            'directors' => [
+                $isCorporate && ! $isUnregisteredBusiness ? 'sometimes' : 'prohibited',
+                'nullable',
+                'array',
+            ],
+            ...$this->directorRules(null),
 
-            // Signatories
-            'signatories'                       => ['required_if:customer_type,business', 'prohibited_unless:customer_type,business', 'array', 'min:1'],
-            'signatories.*.director_index'      => ['nullable', 'integer', 'min:0', 'lt:directors_count'],
-            'signatories.*.title'               => ['nullable', 'string', 'max:20'],
-            'signatories.*.first_name'          => ['required', 'string', 'max:255'],
-            'signatories.*.middle_name'         => ['nullable', 'string', 'max:255'],
-            'signatories.*.last_name'           => ['required', 'string', 'max:255'],
-            'signatories.*.position'            => ['required', 'string', 'max:100'],
-            'signatories.*.phone'               => ['required', 'string', 'max:20'],
-            'signatories.*.email'               => ['nullable', 'email', 'max:255'],
-            'signatories.*.signature'           => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
-            'signatories.*.passport_photo'      => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
-            'signatories.*.gender'              => ['nullable', 'in:male,female'],
-            'signatories.*.dob'                 => ['nullable', 'date', 'before:today'],
-            'signatories.*.bvn'                 => ['nullable', 'digits:11'],
-            'signatories.*.nin'                 => ['nullable', 'digits:11'],
-            'signatories.*.address'             => ['nullable', 'string'],
-            'signatories.*.transaction_limit'   => ['nullable', 'integer', new StrictInteger, 'min:0'],
+            // Signatories — required for registered business-like customers; not_registered
+            // businesses skip this entirely and are captured just like an individual.
+            'signatories' => [
+                $isUnregisteredBusiness ? 'prohibited' : "required_if:customer_type,{$businessLikeTypes}",
+                "prohibited_unless:customer_type,{$businessLikeTypes}",
+                'array',
+                'min:1',
+            ],
+            ...$this->signatoryRules(null),
         ];
     }
 
@@ -152,6 +111,30 @@ class StoreCustomerRequest extends FormRequest
         $this->merge([
             'directors_count' => count($this->input('directors', [])),
         ]);
+
+        if ($this->filled('username')) {
+            $this->merge([
+                'username' => preg_replace('/\s+/', '', $this->username),
+            ]);
+        }
+
+        // Booleans arrive as literal strings over multipart/form-data (needed for file uploads),
+        // and Laravel's "boolean" rule only accepts 0/1/true/false — not the strings "true"/"false".
+        if ($this->has('is_staff') && ! is_bool($this->input('is_staff'))) {
+            $this->merge(['is_staff' => filter_var($this->input('is_staff'), FILTER_VALIDATE_BOOLEAN)]);
+        }
+
+        if ($this->has('directors')) {
+            $directors = $this->input('directors', []);
+
+            foreach ($directors as $index => $director) {
+                if (array_key_exists('is_primary', $director) && ! is_bool($director['is_primary'])) {
+                    $directors[$index]['is_primary'] = filter_var($director['is_primary'], FILTER_VALIDATE_BOOLEAN);
+                }
+            }
+
+            $this->merge(['directors' => $directors]);
+        }
     }
 
     protected function passedValidation(): void

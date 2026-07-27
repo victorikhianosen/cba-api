@@ -23,7 +23,7 @@ class AddressResource extends JsonResource
             'landmark'    => $this->landmark,
             'longitude'   => $this->longitude,
             'latitude'    => $this->latitude,
-            'is_primary'  => $this->is_primary,
+            'status'      => $this->status,
             'created_at'  => $this->created_at,
             'updated_at'  => $this->updated_at,
         ];

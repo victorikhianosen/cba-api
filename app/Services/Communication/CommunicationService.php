@@ -19,11 +19,7 @@ use Throwable;
 
 class CommunicationService
 {
-    /**
-     * Channel name => driver class. Adding a new channel (whatsapp, push,
-     * etc.) later is just a new entry here plus a class implementing
-     * CommunicationChannel — nothing else in this service changes.
-     */
+    // Channel name => driver class. Adding a new channel later is just a new entry here plus a class implementing CommunicationChannel.
     private const DRIVERS = [
         'email' => EmailChannel::class,
         'sms'   => SmsChannel::class,
@@ -55,11 +51,7 @@ class CommunicationService
         return Communication::findOrFail($id);
     }
 
-    /**
-     * Send a single communication and log the outcome regardless of whether
-     * the underlying channel succeeds — this table is the full record of
-     * every email/SMS/etc. the app has ever attempted to send.
-     */
+    // Send a single communication and log the outcome regardless of success — this table is the full record of every send attempted.
     public function send(
         Model $actor,
         string $channel,
@@ -123,15 +115,8 @@ class CommunicationService
         );
     }
 
-    /**
-     * Queue a send to an explicit list of customers, respecting each
-     * customer's channel opt-in flag. Delivery happens off-request via
-     * SendCommunicationJob, so this only validates and enqueues — it
-     * returns the customer ids accepted onto the queue plus a list of
-     * customers skipped up front (not found, no contact, or opted out).
-     *
-     * @param  int[]  $customerIds
-     */
+    // Queues a send to a list of customers (respecting opt-in flags), delivered off-request via SendCommunicationJob — only validates and enqueues here.
+    /** @param int[] $customerIds */
     public function sendBulkToCustomers(
         array $customerIds,
         string $channel,

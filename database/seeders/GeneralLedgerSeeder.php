@@ -11,15 +11,7 @@ use Illuminate\Database\Seeder;
 
 class GeneralLedgerSeeder extends Seeder
 {
-    /**
-     * Definitions cover the GL roles required by AccountProductType
-     * (shared by deposit + investment products) and LoanProductFinancialAccountType,
-     * matching Fineract's real CashAccountsForSavings/CashAccountsForLoan role
-     * names, plus common chart-of-accounts entries. Denominated in NGN — see
-     * USD_DEFINITIONS below for the USD counterparts of the product-role GLs.
-     * Deposit, loan, and investment products each get their own distinct GLs
-     * since a GL can only ever be mapped to one product.
-     */
+    // Covers the GL roles required by AccountProductType and LoanProductFinancialAccountType (matching Fineract's role names) plus common chart-of-accounts entries. Denominated in NGN — see USD_DEFINITIONS for the USD counterparts.
     private const DEFINITIONS = [
         // name, classification, type
 
@@ -75,11 +67,7 @@ class GeneralLedgerSeeder extends Seeder
         ['Investment Transfers Suspense', 'liability', 'suspense'],
     ];
 
-    /**
-     * USD counterparts of the product-role GLs above (deposit/current, loan,
-     * and investment). Prefixed "USD " since GL names must be globally unique
-     * and a GL can only be mapped to one product/currency.
-     */
+    // USD counterparts of the product-role GLs above, prefixed "USD " since GL names must be globally unique and a GL can only be mapped to one product/currency.
     private const USD_DEFINITIONS = [
         // Savings/current product roles (AccountProductType)
         ['USD Savings Control', 'liability', 'savings_control'],
@@ -110,6 +98,15 @@ class GeneralLedgerSeeder extends Seeder
         ['USD Investment Transfers Suspense', 'liability', 'suspense'],
     ];
 
+    // How many generic test GLs to generate per currency for ad hoc posting tests — cycled evenly across all 5 classifications.
+    private const BULK_TEST_GL_COUNTS = [
+        'NGN' => 10,
+        'USD' => 20,
+        'GBP' => 20,
+    ];
+
+    private const CLASSIFICATION_CYCLE = ['asset', 'liability', 'equity', 'income', 'expense'];
+
     public function run(): void
     {
         $ngn = Currency::firstOrCreate(
@@ -122,13 +119,43 @@ class GeneralLedgerSeeder extends Seeder
             ['name' => 'US Dollar', 'status' => 'active', 'is_base_currency' => false],
         );
 
+        $gbp = Currency::firstOrCreate(
+            ['code' => 'GBP'],
+            ['name' => 'Pound Sterling', 'status' => 'active', 'is_base_currency' => false],
+        );
+
         $this->seedDefinitions(self::DEFINITIONS, $ngn);
         $this->seedDefinitions(self::USD_DEFINITIONS, $usd);
+
+        $this->seedBulkTestLedgers($ngn, self::BULK_TEST_GL_COUNTS['NGN']);
+        $this->seedBulkTestLedgers($usd, self::BULK_TEST_GL_COUNTS['USD']);
+        $this->seedBulkTestLedgers($gbp, self::BULK_TEST_GL_COUNTS['GBP']);
     }
 
-    /**
-     * @param array<int, array{0: string, 1: string, 2: string}> $definitions
-     */
+    // Generic numbered GLs (not tied to any product role) so there are enough distinct GLs per currency to exercise postings against — classification cycles evenly so both debit-normal and credit-normal balance behavior get covered.
+    private function seedBulkTestLedgers(Currency $currency, int $count): void
+    {
+        $service = app(GeneralLedgerService::class);
+
+        for ($i = 1; $i <= $count; $i++) {
+            $classification = self::CLASSIFICATION_CYCLE[($i - 1) % count(self::CLASSIFICATION_CYCLE)];
+            $normalizedName = strtolower($currency->code) . '_test_gl_' . str_pad((string) $i, 2, '0', STR_PAD_LEFT);
+
+            if (GeneralLedger::where('name', $normalizedName)->exists()) {
+                continue;
+            }
+
+            $service->create([
+                'name'           => $normalizedName,
+                'classification' => $classification,
+                'type'           => 'general',
+                'currency_id'    => $currency->id,
+                'status'         => 'active',
+            ]);
+        }
+    }
+
+    /** @param array<int, array{0: string, 1: string, 2: string}> $definitions */
     private function seedDefinitions(array $definitions, Currency $currency): void
     {
         $service = app(GeneralLedgerService::class);

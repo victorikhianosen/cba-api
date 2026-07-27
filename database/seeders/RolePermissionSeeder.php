@@ -10,10 +10,7 @@ use Spatie\Permission\Models\Role;
 
 class RolePermissionSeeder extends Seeder
 {
-    /**
-     * Permissions covering CRUD/approve actions across every route currently
-     * built, all granted to the 'admin' role.
-     */
+    // Permissions covering CRUD/approve actions across every route currently built, all granted to the 'admin' role.
     private const PERMISSIONS = [
         'view_users', 'create_users', 'update_users', 'delete_users',
         'view_roles', 'create_roles', 'update_roles', 'delete_roles',
@@ -43,10 +40,7 @@ class RolePermissionSeeder extends Seeder
         $admin = Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'user']);
         $admin->givePermissionTo($permissions);
 
-        // super_admin gets every permission that exists today (kept in sync
-        // via syncPermissions so re-running this seeder never leaves it
-        // behind); it also gets an unconditional Gate::before bypass in
-        // AppServiceProvider, so it never falls behind on future permissions.
+        // super_admin gets every permission that exists (synced, not just granted) plus an unconditional Gate::before bypass in AppServiceProvider.
         $superAdmin = Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'user']);
         $superAdmin->syncPermissions($permissions);
     }

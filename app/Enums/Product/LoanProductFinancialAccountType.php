@@ -4,15 +4,7 @@ declare(strict_types=1);
 
 namespace App\Enums\Product;
 
-/**
- * GL role vocabulary for loan products. Mirrors Fineract's CashAccountsForLoan
- * enum (fineract-core/.../accounting/common/AccountingConstants.java) exactly,
- * including its numeric gaps — restricted here to the fields Fineract's own
- * loan-product creation API documents as mandatory for cash-based accounting
- * (fund source through overpayment). Charge-off/recovery/goodwill-credit
- * roles exist in Fineract for a more advanced workflow we haven't built and
- * are intentionally omitted.
- */
+// GL role vocabulary for loan products, mirrors Fineract's CashAccountsForLoan enum (numeric gaps included); charge-off/recovery/goodwill-credit roles are intentionally omitted (not built yet).
 enum LoanProductFinancialAccountType: int
 {
     case FUND_SOURCE = 1;
@@ -38,19 +30,14 @@ enum LoanProductFinancialAccountType: int
         };
     }
 
-    /**
-     * All 8 roles are mandatory for cash-based loan accounting in Fineract.
-     *
-     * @return self[]
-     */
+    // All 8 roles are mandatory for cash-based loan accounting in Fineract.
+    /** @return self[] */
     public static function required(): array
     {
         return self::cases();
     }
 
-    /**
-     * @return string[]
-     */
+    /** @return string[] */
     public static function names(): array
     {
         return array_map(fn (self $case) => $case->name, self::cases());

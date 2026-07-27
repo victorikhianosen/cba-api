@@ -13,7 +13,7 @@ class PostingResource extends JsonResource
     {
         return [
             'id'                     => $this->id,
-            'posting_reference'      => $this->posting_reference,
+            'reference'              => $this->reference,
             'transaction_reference'  => $this->transaction_reference,
             'idempotency_key'        => $this->idempotency_key,
 
@@ -37,9 +37,8 @@ class PostingResource extends JsonResource
             'total_amount'  => $this->total_amount,
 
             'priority'         => $this->priority,
-            'approval_status'  => $this->approval_status,
+            'status'           => $this->status,
             'approval_level'   => $this->approval_level,
-            'workflow_status'  => $this->workflow_status,
 
             'remarks' => $this->remarks,
 

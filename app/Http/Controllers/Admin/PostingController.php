@@ -79,12 +79,7 @@ class PostingController extends Controller
         }
     }
 
-    /**
-     * Approving a posting is the only action that ever creates the
-     * financial transaction and its ledger legs — everything happens in one
-     * transaction inside PostingService::approve(), so a failure here never
-     * leaves a half-posted transaction behind.
-     */
+    // Approving is the only action that creates the financial transaction and its ledger legs, all inside one transaction in PostingService::approve().
     public function approve(int $id): JsonResponse
     {
         try {

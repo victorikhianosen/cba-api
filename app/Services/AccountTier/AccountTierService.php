@@ -7,6 +7,7 @@ namespace App\Services\AccountTier;
 use App\Models\AccountTier;
 use App\Services\Audit\AuditService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Auth;
 
 class AccountTierService
 {
@@ -26,7 +27,7 @@ class AccountTierService
 
     public function create(array $data): AccountTier
     {
-        $actor = auth()->user();
+        $actor = Auth::guard('user')->user();
 
         $data['status'] = 'active';
 
@@ -46,7 +47,7 @@ class AccountTierService
     public function update(AccountTier $accountTier, array $data): AccountTier
     {
         $before = $accountTier->toArray();
-        $actor  = auth()->user();
+        $actor  = Auth::guard('user')->user();
 
         unset($data['status']);
 

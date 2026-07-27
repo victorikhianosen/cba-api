@@ -24,6 +24,7 @@ class AccountResource extends JsonResource
 
             'account_name'      => $this->account_name,
             'account_number'    => $this->account_number,
+            'primary_account'   => $this->primary_account,
             'account_balance'   => $this->account_balance,
             'available_balance' => $this->available_balance,
             'lien_balance'      => $this->lien_balance,
