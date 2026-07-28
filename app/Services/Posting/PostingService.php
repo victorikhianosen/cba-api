@@ -39,15 +39,20 @@ class PostingService
 
     public function find(int $id): Posting
     {
-        return Posting::with(['currency', 'financialTransaction'])->findOrFail($id);
+        return Posting::with([
+            'currency', 'financialTransaction.journalEntries', 'financialTransaction.transactions',
+            'createdBy', 'reviewedBy', 'approvedBy', 'rejectedBy',
+        ])->findOrFail($id);
     }
 
-    // Get the details, validate them, save the posting as pending. idempotency_key is always generated here — the client never sends it.
+    // Get the details, validate them, save the posting as pending. idempotency_key is always generated here — the client never sends it. Currency is never accepted from the caller — it's always the source party's own currency, and verify() rejects a destination in a different one (no Dollar-to-Naira postings).
     public function create(array $data): Posting
     {
         $data['idempotency_key'] = (string) Str::uuid();
 
-        $this->verify($data['source_type'], $data['source_id'], $data['destination_type'], $data['destination_id'], (int) $data['currency_id'], (string) $data['amount']);
+        [$source] = $this->verify($data['source_type'], (int) $data['source_id'], $data['destination_type'], (int) $data['destination_id'], (string) $data['amount']);
+
+        $data['currency_id'] = (int) $source->currency_id;
 
         $actor  = Auth::guard('user')->user();
         $amount = (string) $data['amount'];
@@ -98,31 +103,59 @@ class PostingService
                 $posting->source_id,
                 $posting->destination_type,
                 $posting->destination_id,
-                (int) $posting->currency_id,
                 (string) $posting->amount,
             );
 
             $financialTransaction = $this->recordFinancialTransaction($posting, $source, $destination, $actor);
 
-            $leg = [
+            $baseLeg = [
                 'financial_transaction_id' => $financialTransaction->id,
                 'entry_group_id'           => (string) Str::uuid(),
+                'transaction_reference'    => $posting->transaction_reference,
                 'amount'                   => $posting->amount,
                 'currency_id'              => $posting->currency_id,
                 'narration'                => $posting->remarks,
                 'created_by'               => $actor?->id,
+                'module'                   => $posting->module,
+                'transaction_type'         => $posting->transaction_type,
+                'transaction_subtype'      => $posting->transaction_subtype,
+                'business_service'         => $posting->business_service,
+                'channel'                  => $posting->channel,
+            ];
+
+            // Each leg's "counterparty" is the OTHER party in the posting — denormalized
+            // onto the transaction row so "who sent/received this" never needs a join.
+            $sourceSnapshot      = $this->partySnapshot($source, $posting->source_type);
+            $destinationSnapshot = $this->partySnapshot($destination, $posting->destination_type);
+
+            $debitLeg = [
+                ...$baseLeg,
+                'counterparty_type'           => $destinationSnapshot['type'],
+                'counterparty_id'             => $destinationSnapshot['id'],
+                'counterparty_name'           => $destinationSnapshot['name'],
+                'counterparty_account_number' => $destinationSnapshot['code'],
+            ];
+
+            $creditLeg = [
+                ...$baseLeg,
+                'counterparty_type'           => $sourceSnapshot['type'],
+                'counterparty_id'             => $sourceSnapshot['id'],
+                'counterparty_name'           => $sourceSnapshot['name'],
+                'counterparty_account_number' => $sourceSnapshot['code'],
             ];
 
             $posting->source_type === 'account'
-                ? $this->accountLedger->debit($source, $leg)
-                : $this->glLedger->debit($source, $leg);
+                ? $this->accountLedger->debit($source, $debitLeg)
+                : $this->glLedger->debit($source, $debitLeg);
 
             $posting->destination_type === 'account'
-                ? $this->accountLedger->credit($destination, $leg)
-                : $this->glLedger->credit($destination, $leg);
+                ? $this->accountLedger->credit($destination, $creditLeg)
+                : $this->glLedger->credit($destination, $creditLeg);
 
             $posting->update([
                 'status'      => PostingStatus::APPROVED->value,
+                'reviewed_by' => $actor?->id,
+                'reviewed_at' => now(),
                 'approved_by' => $actor?->id,
                 'approved_at' => now(),
             ]);
@@ -153,6 +186,8 @@ class PostingService
 
         $posting->update([
             'status'           => PostingStatus::REJECTED->value,
+            'reviewed_by'      => $actor?->id,
+            'reviewed_at'      => now(),
             'rejected_by'      => $actor?->id,
             'rejected_at'      => now(),
             'rejection_reason' => $reason,
@@ -170,8 +205,8 @@ class PostingService
         return $posting;
     }
 
-    // Resolves source/destination, locks both rows (fixed [type, id] order to avoid deadlocks), checks currency match and that the source can cover the debit.
-    private function verify(string $sourceType, int $sourceId, string $destinationType, int $destinationId, int $currencyId, string $amount): array
+    // Resolves source/destination, locks both rows (fixed [type, id] order to avoid deadlocks), checks currency match and that the source can cover the debit. Currency is never taken from a caller-supplied value — it's derived from the parties themselves, so a Dollar-to-Naira posting is structurally impossible, not just rejected after the fact.
+    private function verify(string $sourceType, int $sourceId, string $destinationType, int $destinationId, string $amount): array
     {
         if ($sourceType === $destinationType && $sourceId === $destinationId) {
             throw ValidationException::withMessages([
@@ -205,9 +240,9 @@ class PostingService
         $source      = $locked["{$sourceType}:{$sourceId}"];
         $destination = $locked["{$destinationType}:{$destinationId}"];
 
-        if ((int) $source->currency_id !== (int) $destination->currency_id || (int) $source->currency_id !== $currencyId) {
+        if ((int) $source->currency_id !== (int) $destination->currency_id) {
             throw ValidationException::withMessages([
-                'currency_id' => ['Cannot post between parties with different currencies. Source, destination, and posting currency must all match.'],
+                'destination_id' => ['Cannot post between parties with different currencies (e.g. Dollar to Naira) — source and destination must share the same currency.'],
             ]);
         }
 
@@ -222,6 +257,15 @@ class PostingService
         }
 
         return [$source, $destination];
+    }
+
+    // A display-ready snapshot of a party (account or GL) at the moment of posting —
+    // 'code' is the account number for an account, the gl_code for a GL.
+    private function partySnapshot(Model $party, string $type): array
+    {
+        return $type === 'account'
+            ? ['type' => 'account', 'id' => $party->id, 'name' => $party->account_name, 'code' => $party->account_number]
+            : ['type' => 'general_ledger', 'id' => $party->id, 'name' => $party->name, 'code' => $party->gl_code];
     }
 
     private function recordFinancialTransaction(Posting $posting, Model $source, Model $destination, ?User $actor): FinancialTransaction

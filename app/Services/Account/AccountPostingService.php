@@ -11,6 +11,7 @@ use App\Enums\Transaction\TransactionStatus;
 use App\Models\Account;
 use App\Models\Transaction;
 use App\Services\GeneralLedger\GeneralLedgerPostingService;
+use App\Support\ReferenceGenerator;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
@@ -106,10 +107,26 @@ class AccountPostingService
         $transaction = Transaction::create([
             'financial_transaction_id' => $leg['financial_transaction_id'],
             'entry_group_id'           => $leg['entry_group_id'],
+            'transaction_reference'    => $leg['transaction_reference'] ?? null,
+            'reference'                => ReferenceGenerator::generate('TXN'),
             'account_id'               => $account->id,
             'customer_id'              => $account->customer_id,
             'posting_type'             => $leg['posting_type'] ?? null,
-            'debit_credit'             => $debitCredit->value,
+            'module'                   => $leg['module'] ?? null,
+            'transaction_type'         => $leg['transaction_type'] ?? null,
+            'transaction_subtype'      => $leg['transaction_subtype'] ?? null,
+            'business_service'         => $leg['business_service'] ?? null,
+            'channel'                  => $leg['channel'] ?? null,
+            'service_provider'         => $leg['service_provider'] ?? null,
+            'provider_reference'       => $leg['provider_reference'] ?? null,
+            'counterparty_type'           => $leg['counterparty_type'] ?? null,
+            'counterparty_id'             => $leg['counterparty_id'] ?? null,
+            'counterparty_name'           => $leg['counterparty_name'] ?? null,
+            'counterparty_account_number' => $leg['counterparty_account_number'] ?? null,
+            'counterparty_bank_code'      => $leg['counterparty_bank_code'] ?? null,
+            'counterparty_bank_name'      => $leg['counterparty_bank_name'] ?? null,
+            'type'                     => $debitCredit->value,
+            'direction'                => $debitCredit === DebitCredit::CREDIT ? 'inward' : 'outward',
             'amount'                   => $amount,
             'balance_before'           => $balanceBefore,
             'balance_after'            => $balanceAfter,

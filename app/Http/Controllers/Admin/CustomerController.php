@@ -13,10 +13,12 @@ use App\Http\Requests\Admin\Customer\StoreCustomerAccountRequest;
 use App\Http\Requests\Admin\Customer\StoreCustomerRequest;
 use App\Http\Requests\Admin\Customer\UpdateCustomerAccountsStatusRequest;
 use App\Http\Requests\Admin\Customer\UpdateCustomerRequest;
+use App\Http\Requests\Admin\Customer\UpdateCustomerStatusRequest;
 use App\Http\Requests\Admin\Customer\UpdateDocumentRequest;
 use App\Http\Requests\Admin\Customer\UploadDocumentsRequest;
 use App\Http\Resources\Admin\Account\AccountResource;
 use App\Http\Resources\Admin\Customer\CustomerListResource;
+use App\Http\Resources\Admin\Customer\CustomerLookupResource;
 use App\Http\Resources\Admin\Customer\CustomerResource;
 use App\Http\Resources\Admin\Customer\DocumentResource;
 use App\Services\Account\AccountService;
@@ -46,6 +48,36 @@ class CustomerController extends Controller
         return $this->success(
             message: 'Customers retrieved successfully.',
             data: CustomerListResource::collection($customers),
+        );
+    }
+
+    // Resolves a customer by CIF number to their id/name — used to confirm a
+    // guardian (or any other customer reference) before submitting a form.
+    public function lookup(Request $request): JsonResponse
+    {
+        $cifNumber = trim((string) $request->query('cif_number'));
+
+        if ($cifNumber === '') {
+            return $this->error(
+                message: 'The cif_number query parameter is required.',
+                responseCode: '101',
+                statusCode: 422,
+            );
+        }
+
+        $customer = $this->customers->findByCifNumber($cifNumber);
+
+        if (! $customer) {
+            return $this->error(
+                message: 'No customer found with that CIF number.',
+                responseCode: '404',
+                statusCode: 404,
+            );
+        }
+
+        return $this->success(
+            message: 'Customer found.',
+            data: new CustomerLookupResource($customer),
         );
     }
 
@@ -223,6 +255,44 @@ class CustomerController extends Controller
 
             return $this->success(
                 message: 'Customer closed successfully.',
+                data: new CustomerResource($customer),
+            );
+        } catch (ModelNotFoundException $e) {
+            return $this->error(
+                message: 'The requested customer was not found.',
+                responseCode: '404',
+                statusCode: 404,
+            );
+        } catch (ValidationException $e) {
+            return $this->error(
+                message: $e->getMessage(),
+                responseCode: '101',
+                statusCode: 422,
+                errors: $e->errors(),
+            );
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->error(
+                message: 'We are unable to process your request please try again.',
+                responseCode: '500',
+                statusCode: 500,
+            );
+        }
+    }
+
+    // Generic status change to anything in the `statuses` lookup table (dormant, frozen,
+    // suspended, kyc_verified, blacklisted, etc.), with an optional comment — approve/reject/close
+    // stay as their own endpoints since each has its own required side effects and fields.
+    public function updateStatus(UpdateCustomerStatusRequest $request, int $id): JsonResponse
+    {
+        try {
+            $customer = $this->customers->find($id);
+            $data     = $request->validated();
+            $customer = $this->customers->updateStatus($customer, $data['status'], $data['comment'] ?? null);
+
+            return $this->success(
+                message: 'Customer status updated successfully.',
                 data: new CustomerResource($customer),
             );
         } catch (ModelNotFoundException $e) {

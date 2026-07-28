@@ -16,9 +16,18 @@ class AccountResource extends JsonResource
         return [
             'id'                  => $this->id,
             'customer_id'         => $this->customer_id,
+            'customer'            => $this->whenLoaded('customer', fn () => [
+                'id'            => $this->customer->id,
+                'cif_number'    => $this->customer->cif_number,
+                'customer_type' => $this->customer->customer_type,
+                'full_name'     => trim("{$this->customer->first_name} {$this->customer->last_name}") ?: $this->customer->business_name,
+                'email'         => $this->customer->email,
+                'phone'         => $this->customer->phone,
+            ]),
             'account_product_id'  => $this->account_product_id,
             'account_product'     => new AccountProductResource($this->whenLoaded('accountProduct')),
             'currency_id'         => $this->currency_id,
+            'currency_code'       => $this->whenLoaded('currency', fn () => $this->currency?->code),
             'account_tier_id'     => $this->account_tier_id,
             'account_tier'        => new AccountTierResource($this->whenLoaded('accountTier')),
 

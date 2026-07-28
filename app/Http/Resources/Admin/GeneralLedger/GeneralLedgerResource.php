@@ -24,6 +24,7 @@ class GeneralLedgerResource extends JsonResource
             'type'                            => $this->type,
             'manual_journal_entries_allowed'  => $this->manual_journal_entries_allowed,
             'status'                          => $this->status,
+            'is_assigned'                     => $this->is_assigned,
             'description'                     => $this->description,
             'created_at'                      => $this->created_at,
             'updated_at'                      => $this->updated_at,

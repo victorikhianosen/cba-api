@@ -9,6 +9,7 @@ use App\Enums\GeneralLedger\GeneralLedgerStatus;
 use App\Enums\Transaction\DebitCredit;
 use App\Models\GeneralLedger;
 use App\Models\JournalEntry;
+use App\Support\ReferenceGenerator;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
@@ -70,6 +71,8 @@ class GeneralLedgerPostingService
         $journalEntry = JournalEntry::create([
             'financial_transaction_id' => $leg['financial_transaction_id'],
             'entry_group_id'           => $leg['entry_group_id'],
+            'transaction_reference'    => $leg['transaction_reference'] ?? null,
+            'journal_reference'        => ReferenceGenerator::generate('JNL'),
             'general_ledger_id'        => $generalLedger->id,
             'entry_type'               => $entryType->value,
             'amount'                   => $amount,

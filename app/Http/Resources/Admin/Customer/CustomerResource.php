@@ -8,6 +8,7 @@ use App\Enums\Customer\CustomerType;
 use App\Http\Resources\Admin\Account\AccountResource;
 use App\Http\Resources\Admin\AccountOfficer\AccountOfficerResource;
 use App\Http\Resources\Admin\Branch\BranchResource;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -73,6 +74,7 @@ class CustomerResource extends JsonResource
 
                 'approval' => [
                     'approved_by' => $this->approved_by,
+                    'approver'    => $this->whenLoaded('approvedBy', fn () => $this->userSummary($this->approvedBy)),
                     'approved_at' => $this->approved_at,
 
                     'rejected_by'      => $this->rejected_by,
@@ -84,6 +86,8 @@ class CustomerResource extends JsonResource
                     'closure_reason' => $this->closure_reason,
                 ],
 
+                'created_by' => $this->created_by,
+                'creator'    => $this->whenLoaded('createdBy', fn () => $this->userSummary($this->createdBy)),
                 'created_at' => $this->created_at,
                 'updated_at' => $this->updated_at,
             ],
@@ -104,6 +108,22 @@ class CustomerResource extends JsonResource
             'business'    => $this->when(in_array($this->customer_type, CustomerType::businessLike(), true), fn () => new BusinessResource($this->whenLoaded('business'))),
             'directors'   => $this->when($this->customer_type === CustomerType::CORPORATE->value, fn () => DirectorResource::collection($this->whenLoaded('directors'))),
             'signatories' => $this->when(in_array($this->customer_type, CustomerType::businessLike(), true), fn () => SignatoryResource::collection($this->whenLoaded('signatories'))),
+        ];
+    }
+
+    // Minimal actor projection for created_by/approved_by — null-safe since the
+    // relation may be loaded but empty (e.g. no admin ever set on legacy rows).
+    private function userSummary(?User $user): ?array
+    {
+        if (! $user) {
+            return null;
+        }
+
+        return [
+            'id'         => $user->id,
+            'first_name' => $user->first_name,
+            'last_name'  => $user->last_name,
+            'username'   => $user->username,
         ];
     }
 }

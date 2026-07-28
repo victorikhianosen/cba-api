@@ -11,6 +11,7 @@ use App\Http\Requests\Admin\GeneralLedger\UpdateGeneralLedgerStatusRequest;
 use App\Http\Resources\Admin\GeneralLedger\GeneralLedgerResource;
 use App\Services\GeneralLedger\GeneralLedgerService;
 use App\Traits\ApiResponse;
+use App\Traits\Exportable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -18,6 +19,7 @@ use Illuminate\Validation\ValidationException;
 class GeneralLedgerController extends Controller
 {
     use ApiResponse;
+    use Exportable;
 
     public function __construct(
         private GeneralLedgerService $generalLedgers,
@@ -25,7 +27,7 @@ class GeneralLedgerController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $generalLedgers = $this->generalLedgers->list($request->integer('per_page', 15));
+        $generalLedgers = $this->generalLedgers->list($request->integer('per_page', 50), $request->string('search')->trim()->value() ?: null);
 
         return $this->success(
             message: 'General ledgers retrieved successfully.',
@@ -33,9 +35,93 @@ class GeneralLedgerController extends Controller
         );
     }
 
+    public function stats(): JsonResponse
+    {
+        return $this->success(
+            message: 'General ledger stats retrieved successfully.',
+            data: $this->generalLedgers->stats(),
+        );
+    }
+
+    public function exportCsvFile(Request $request)
+    {
+        $search = $request->string('search')->trim()->value() ?: null;
+
+        $rows = $this->generalLedgers
+            ->cursorForExport($search)
+            ->map(fn ($ledger) => [
+                'GL Code'        => $ledger->gl_code,
+                'Name'           => $ledger->name,
+                'Classification' => $ledger->classification,
+                'Type'           => $ledger->type,
+                'Balance'        => (string) $ledger->balance,
+                'Currency'       => $ledger->currency?->code,
+                'Status'         => $ledger->status,
+                'Assigned'       => $ledger->is_assigned ? 'Yes' : 'No',
+            ]);
+
+        return $this->exportCsv('general-ledgers.csv', $rows);
+    }
+
+    public function exportExcelFile(Request $request)
+    {
+        $search = $request->string('search')->trim()->value() ?: null;
+
+        $rows = $this->generalLedgers
+            ->cursorForExport($search)
+            ->map(fn ($ledger) => [
+                'GL Code'        => $ledger->gl_code,
+                'Name'           => $ledger->name,
+                'Classification' => $ledger->classification,
+                'Type'           => $ledger->type,
+                'Balance'        => (string) $ledger->balance,
+                'Currency'       => $ledger->currency?->code,
+                'Status'         => $ledger->status,
+                'Assigned'       => $ledger->is_assigned ? 'Yes' : 'No',
+            ]);
+
+        return $this->exportExcel('general-ledgers.xlsx', $rows);
+    }
+
+    public function exportPdfFile(Request $request)
+    {
+        $search = $request->string('search')->trim()->value() ?: null;
+
+        $total = $this->generalLedgers->countForFilter($search);
+
+        if ($total > self::PDF_EXPORT_ROW_LIMIT) {
+            return $this->error(
+                message: "This filter matches {$total} general ledgers — PDF export is limited to " . self::PDF_EXPORT_ROW_LIMIT . '. Narrow the search or use CSV export instead.',
+                responseCode: '101',
+                statusCode: 422,
+            );
+        }
+
+        $rows = $this->generalLedgers
+            ->cursorForExport($search)
+            ->map(fn ($ledger) => [
+                $ledger->gl_code,
+                $ledger->name,
+                ucfirst((string) $ledger->classification),
+                number_format((float) $ledger->balance, 2),
+                $ledger->currency?->code,
+                strtoupper($ledger->status),
+                $ledger->is_assigned ? 'Yes' : 'No',
+            ])
+            ->all();
+
+        return $this->exportPdf('exports.table', [
+            'title'   => 'General Ledgers',
+            'headers' => ['GL Code', 'Name', 'Classification', 'Balance', 'Currency', 'Status', 'Assigned'],
+            'rows'    => $rows,
+            'from'    => null,
+            'to'      => null,
+        ], 'general-ledgers.pdf');
+    }
+
     public function available(Request $request): JsonResponse
     {
-        $generalLedgers = $this->generalLedgers->available($request->integer('per_page', 15));
+        $generalLedgers = $this->generalLedgers->available($request->integer('per_page', 50));
 
         return $this->success(
             message: 'Available general ledgers retrieved successfully.',

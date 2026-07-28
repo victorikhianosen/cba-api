@@ -14,6 +14,7 @@ enum PostingTransactionType: string
     case REVERSAL = 'reversal';
     case ADJUSTMENT = 'adjustment';
     case REFUND = 'refund';
+    case OTHER = 'other';
 
     /** @return string[] */
     public static function values(): array

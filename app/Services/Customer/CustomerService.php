@@ -34,11 +34,16 @@ class CustomerService
         return Customer::query()->latest()->paginate($perPage)->withQueryString();
     }
 
-    private const RELATIONS = ['branch', 'accountOfficer', 'documents', 'currentAddress', 'nextOfKin', 'business', 'directors', 'signatories', 'accounts.accountProduct', 'accounts.accountTier'];
+    private const RELATIONS = ['branch', 'accountOfficer', 'documents', 'currentAddress', 'nextOfKin', 'business', 'directors', 'signatories', 'accounts.accountProduct', 'accounts.accountTier', 'createdBy', 'approvedBy'];
 
     public function find(int $id): Customer
     {
         return Customer::with(self::RELATIONS)->findOrFail($id);
+    }
+
+    public function findByCifNumber(string $cifNumber): ?Customer
+    {
+        return Customer::where('cif_number', $cifNumber)->first();
     }
 
     public function create(array $data): Customer
@@ -75,6 +80,7 @@ class CustomerService
         $data['cif_number']     = $this->generateUniqueCifNumber();
         $data['referral_code']  = $this->generateUniqueReferralCode();
         $data['panic_password'] = null; // Not offered at onboarding yet — always null regardless of what's sent.
+        $data['created_by']     = $actor?->id;
 
         if ($business) {
             $data['business_name'] = $business['business_name'] ?? null;
@@ -484,21 +490,38 @@ class CustomerService
         return $this->toggleFlag($customer, 'enable_email', 'email notifications');
     }
 
-    public function updateStatus(Customer $customer, string $status): Customer
+    // Generic status change to any code in the `statuses` lookup table, with an optional
+    // comment recorded on the audit trail (there's no dedicated column for it — unlike
+    // approve/reject/close, this covers arbitrary transitions like dormant, frozen, kyc_verified).
+    public function updateStatus(Customer $customer, string $status, ?string $comment = null): Customer
     {
+        // A pending customer hasn't been vetted yet — it must go through approve()/reject()
+        // first, not be nudged into an arbitrary status via this generic endpoint.
+        if ($customer->status === 'pending') {
+            throw ValidationException::withMessages([
+                'status' => ['This customer is still pending approval. Approve or reject them before changing their status.'],
+            ]);
+        }
+
         $before = $customer->status;
         $actor  = Auth::guard('user')->user();
 
         $customer->update(['status' => $status]);
         $customer->refresh();
 
+        $description = "Customer '{$this->displayName($customer)}' ({$customer->cif_number}) status changed from '{$before}' to '{$customer->status}' by '{$actor?->username}'.";
+
+        if ($comment) {
+            $description .= " Comment: {$comment}";
+        }
+
         $this->audit->log(
             action: 'status_updated',
             module: 'customers',
             auditable: $customer,
             before: ['status' => $before],
-            after: ['status' => $customer->status],
-            description: "Customer '{$this->displayName($customer)}' ({$customer->cif_number}) status changed from '{$before}' to '{$customer->status}' by '{$actor?->username}'.",
+            after: ['status' => $customer->status, 'comment' => $comment],
+            description: $description,
         );
 
         return $customer;

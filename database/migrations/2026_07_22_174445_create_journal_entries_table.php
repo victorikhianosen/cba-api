@@ -18,6 +18,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('financial_transaction_id')->constrained('financial_transactions')->cascadeOnDelete();
             $table->uuid('entry_group_id')->index();
+            $table->string('transaction_reference')->nullable()->index();
+            $table->string('journal_reference')->nullable()->index();
             $table->foreignId('general_ledger_id')->constrained('general_ledgers');
             $table->enum('entry_type', ['debit', 'credit']);
             $table->decimal('amount', 20, 4)->default(0);

@@ -17,8 +17,15 @@ class UpdateCustomerAccountsStatusRequest extends FormRequest
 
     public function rules(): array
     {
+        // 'pending' is excluded — it's only the initial state an account is opened in, not a
+        // state you can transition back into once past it.
+        $allowedStatuses = array_filter(
+            AccountStatus::values(),
+            fn (string $status) => $status !== AccountStatus::PENDING->value,
+        );
+
         return [
-            'status' => ['required', Rule::in(AccountStatus::values())],
+            'status' => ['required', Rule::in($allowedStatuses)],
         ];
     }
 }

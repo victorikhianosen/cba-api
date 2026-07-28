@@ -20,9 +20,9 @@ class ApproveCustomerRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // Admin must pick the account product to assign on approval; tier is optional.
+            // Admin must pick both the account product and tier to assign on approval.
             'account_product_id' => ['required', 'integer', 'exists:account_products,id'],
-            'account_tier_id'    => ['sometimes', 'nullable', 'integer', 'exists:account_tiers,id'],
+            'account_tier_id'    => ['required', 'integer', 'exists:account_tiers,id'],
         ];
     }
 

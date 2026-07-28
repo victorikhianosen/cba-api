@@ -20,9 +20,11 @@ class StoreAccountProductRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        // Name is a free-text label ("Saving Account") — the unique machine identifier is the
+        // auto-generated `code` (e.g. SAV000001), so name isn't forced into snake_case anymore.
         if ($this->filled('name')) {
             $this->merge([
-                'name' => strtolower(str_replace(' ', '_', trim($this->name))),
+                'name' => trim($this->name),
             ]);
         }
 

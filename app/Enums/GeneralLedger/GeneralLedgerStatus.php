@@ -10,7 +10,6 @@ enum GeneralLedgerStatus: string
     case ACTIVE = 'active';
     case INACTIVE = 'inactive';
     case REJECTED = 'rejected';
-    case ASSIGNED = 'assigned';
 
     /** @return string[] */
     public static function values(): array

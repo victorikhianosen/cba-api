@@ -18,6 +18,7 @@ class GeneralLedger extends Model
         return [
             'balance'                        => 'decimal:6',
             'manual_journal_entries_allowed' => 'boolean',
+            'is_assigned'                    => 'boolean',
         ];
     }
 

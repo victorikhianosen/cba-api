@@ -66,7 +66,7 @@ class InvestmentProductService
                     'financial_account_type_name' => $type->name,
                 ]);
 
-                GeneralLedger::whereKey($mapping['general_ledger_id'])->update(['status' => GeneralLedgerStatus::ASSIGNED->value]);
+                GeneralLedger::whereKey($mapping['general_ledger_id'])->update(['status' => GeneralLedgerStatus::ACTIVE->value, 'is_assigned' => true]);
             }
 
             return $investmentProduct->load('generalLedgerMappings.generalLedger');

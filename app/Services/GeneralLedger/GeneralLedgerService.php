@@ -27,9 +27,48 @@ class GeneralLedgerService
         private AuditService $audit,
     ) {}
 
-    public function list(int $perPage = 15): LengthAwarePaginator
+    // $search matches the GL's name or gl_code — lets a search-as-you-type picker work
+    // against however many ledgers exist without ever loading them all client-side.
+    public function list(int $perPage = 50, ?string $search = null): LengthAwarePaginator
     {
-        return GeneralLedger::query()->latest()->paginate($perPage)->withQueryString();
+        return GeneralLedger::query()
+            ->when($search, function ($query, $search) {
+                $query->where(function ($query) use ($search) {
+                    $query->where('name', 'like', "%{$search}%")
+                        ->orWhere('gl_code', 'like', "%{$search}%");
+                });
+            })
+            ->latest()
+            ->paginate($perPage)
+            ->withQueryString();
+    }
+
+    // A cursor, not a Collection — never loads more than one row into memory at a time,
+    // so exporting stays flat regardless of how many ledgers match the filter.
+    public function cursorForExport(?string $search = null): \Illuminate\Support\LazyCollection
+    {
+        return GeneralLedger::query()
+            ->when($search, function ($query, $search) {
+                $query->where(function ($query) use ($search) {
+                    $query->where('name', 'like', "%{$search}%")
+                        ->orWhere('gl_code', 'like', "%{$search}%");
+                });
+            })
+            ->with('currency')
+            ->orderBy('gl_code')
+            ->cursor();
+    }
+
+    public function countForFilter(?string $search = null): int
+    {
+        return GeneralLedger::query()
+            ->when($search, function ($query, $search) {
+                $query->where(function ($query) use ($search) {
+                    $query->where('name', 'like', "%{$search}%")
+                        ->orWhere('gl_code', 'like', "%{$search}%");
+                });
+            })
+            ->count();
     }
 
     public function find(int $id): GeneralLedger
@@ -37,7 +76,19 @@ class GeneralLedgerService
         return GeneralLedger::findOrFail($id);
     }
 
-    public function available(int $perPage = 15): LengthAwarePaginator
+    // Whole-table counts, independent of pagination/search, for summary cards.
+    public function stats(): array
+    {
+        return [
+            'total'      => GeneralLedger::count(),
+            'active'     => GeneralLedger::where('status', GeneralLedgerStatus::ACTIVE->value)->count(),
+            'inactive'   => GeneralLedger::where('status', GeneralLedgerStatus::INACTIVE->value)->count(),
+            'assigned'   => GeneralLedger::where('is_assigned', true)->count(),
+            'unassigned' => GeneralLedger::where('is_assigned', false)->count(),
+        ];
+    }
+
+    public function available(int $perPage = 50): LengthAwarePaginator
     {
         return GeneralLedger::query()
             ->where('status', GeneralLedgerStatus::ACTIVE->value)

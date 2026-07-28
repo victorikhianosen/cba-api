@@ -9,7 +9,9 @@ use App\Models\Account;
 use App\Models\AccountProduct;
 use App\Models\AccountTier;
 use App\Models\Customer;
+use App\Models\Transaction;
 use App\Services\Audit\AuditService;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -40,6 +42,37 @@ class AccountService
     public function find(int $id): Account
     {
         return Account::with(['customer', 'accountProduct', 'currency', 'accountTier'])->findOrFail($id);
+    }
+
+    // $search matches the account number/name directly, or the owning customer's cif number/name.
+    public function list(int $perPage = 15, ?string $search = null): LengthAwarePaginator
+    {
+        return Account::query()
+            ->with(['customer', 'accountProduct', 'currency', 'accountTier'])
+            ->when($search, function ($query, $search) {
+                $query->where(function ($query) use ($search) {
+                    $query->where('account_number', 'like', "%{$search}%")
+                        ->orWhere('account_name', 'like', "%{$search}%")
+                        ->orWhereHas('customer', function ($query) use ($search) {
+                            $query->where('cif_number', 'like', "%{$search}%")
+                                ->orWhere('first_name', 'like', "%{$search}%")
+                                ->orWhere('last_name', 'like', "%{$search}%")
+                                ->orWhere('business_name', 'like', "%{$search}%");
+                        });
+                });
+            })
+            ->latest()
+            ->paginate($perPage)
+            ->withQueryString();
+    }
+
+    public function transactionsFor(int $accountId, int $perPage = 20): LengthAwarePaginator
+    {
+        return Transaction::where('account_id', $accountId)
+            ->latest('posting_date')
+            ->latest('id')
+            ->paginate($perPage)
+            ->withQueryString();
     }
 
     // Lets an already-onboarded customer open an additional account; the requested type must match the product's own type. One transaction — if anything fails, nothing is created.

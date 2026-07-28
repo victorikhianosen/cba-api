@@ -45,7 +45,9 @@ class GlobalLogger
             'user_agent'    => $request->userAgent(),
             'request_data'  => $this->sanitize($request),
             'status_code'   => $response->getStatusCode(),
-            'response_data' => $this->sanitizeResponse(json_decode($response->getContent(), true)),
+            'response_data' => $response instanceof \Symfony\Component\HttpFoundation\StreamedResponse
+                ? '[streamed response]'
+                : $this->sanitizeResponse(json_decode((string) $response->getContent(), true)),
             'execution_ms'  => $executionTime,
         ]);
 

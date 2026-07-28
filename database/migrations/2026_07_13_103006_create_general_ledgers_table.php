@@ -51,6 +51,7 @@ return new class extends Migration
                 ->default(true);
 
             $table->string('status')->default('pending');
+            $table->boolean('is_assigned')->default(false);
 
             $table->longText('description')
                 ->nullable();

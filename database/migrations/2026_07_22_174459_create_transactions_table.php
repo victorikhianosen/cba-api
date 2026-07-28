@@ -18,6 +18,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('financial_transaction_id')->constrained('financial_transactions')->cascadeOnDelete();
             $table->uuid('entry_group_id')->index();
+            $table->string('transaction_reference')->nullable()->index();
+            $table->string('reference')->nullable()->index();
             $table->foreignId('account_id')->constrained('accounts');
             $table->foreignId('customer_id')->nullable()->constrained('customers')->nullOnDelete();
             $table->string('posting_type')->nullable();
@@ -28,7 +30,7 @@ return new class extends Migration
             $table->foreignId('currency_id')->constrained('currencies');
             $table->date('value_date')->nullable();
             $table->date('posting_date')->nullable();
-            $table->string('status')->default('pending');
+            $table->string('status')->default('posted');
             $table->text('narration')->nullable();
             $table->json('metadata')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();

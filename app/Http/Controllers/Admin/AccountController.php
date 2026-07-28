@@ -7,10 +7,12 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Account\UpdateAccountStatusRequest;
 use App\Http\Resources\Admin\Account\AccountResource;
+use App\Http\Resources\Admin\Posting\TransactionResource;
 use App\Services\Account\AccountService;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class AccountController extends Controller
 {
@@ -19,6 +21,36 @@ class AccountController extends Controller
     public function __construct(
         private AccountService $accounts,
     ) {}
+
+    public function index(Request $request): JsonResponse
+    {
+        $accounts = $this->accounts->list($request->integer('per_page', 50), $request->string('search')->trim()->value() ?: null);
+
+        return $this->success(
+            message: 'Accounts retrieved successfully.',
+            data: AccountResource::collection($accounts),
+        );
+    }
+
+    public function transactions(Request $request, int $id): JsonResponse
+    {
+        try {
+            $this->accounts->find($id);
+
+            $transactions = $this->accounts->transactionsFor($id, $request->integer('per_page', 20));
+
+            return $this->success(
+                message: 'Transactions retrieved successfully.',
+                data: TransactionResource::collection($transactions),
+            );
+        } catch (ModelNotFoundException $e) {
+            return $this->error(
+                message: 'The requested account was not found.',
+                responseCode: '404',
+                statusCode: 404,
+            );
+        }
+    }
 
     public function show(int $id): JsonResponse
     {

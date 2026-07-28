@@ -13,12 +13,16 @@ use App\Http\Controllers\Admin\BranchController;
 use App\Http\Controllers\Admin\CommunicationController;
 use App\Http\Controllers\Admin\CurrencyController;
 use App\Http\Controllers\Admin\CustomerController;
+use App\Http\Controllers\Admin\FinancialTransactionController;
 use App\Http\Controllers\Admin\GeneralLedgerController;
 use App\Http\Controllers\Admin\InvestmentProductController;
+use App\Http\Controllers\Admin\JournalEntryController;
 use App\Http\Controllers\Admin\LoanProductController;
 use App\Http\Controllers\Admin\PermissionController;
 use App\Http\Controllers\Admin\PostingController;
 use App\Http\Controllers\Admin\RoleController;
+use App\Http\Controllers\Admin\StatusController;
+use App\Http\Controllers\Admin\TransactionController;
 use App\Http\Controllers\Admin\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -134,11 +138,13 @@ Route::middleware(['user'])->group(function () {
         Route::get('/', 'index')->middleware('permission:view_customers');
         Route::post('/', 'store')->middleware('permission:create_customers');
         Route::post('bulk', 'bulkUpdate')->middleware('permission:update_customers');
+        Route::get('lookup', 'lookup')->middleware('permission:view_customers');
         Route::get('{id}', 'show')->middleware('permission:view_customers');
         Route::put('{id}', 'update')->middleware('permission:update_customers');
         Route::post('{id}/approve', 'approve')->middleware('permission:update_customers');
         Route::post('{id}/reject', 'reject')->middleware('permission:update_customers');
         Route::post('{id}/close', 'close')->middleware('permission:update_customers');
+        Route::post('{id}/status', 'updateStatus')->middleware('permission:update_customers');
         Route::delete('{id}', 'destroy')->middleware('permission:delete_customers');
         Route::post('{id}/documents', 'uploadDocuments')->middleware('permission:update_customers');
         Route::put('{customerId}/documents/{documentId}', 'updateDocument')->middleware('permission:update_customers');
@@ -149,8 +155,12 @@ Route::middleware(['user'])->group(function () {
         Route::post('{id}/toggle-email', 'toggleEmail')->middleware('permission:update_customers');
     });
 
+    Route::get('statuses', [StatusController::class, 'index'])->middleware('permission:view_customers');
+
     Route::prefix('accounts')->controller(AccountController::class)->group(function () {
+        Route::get('/', 'index')->middleware('permission:view_accounts');
         Route::get('{id}', 'show')->middleware('permission:view_accounts');
+        Route::get('{id}/transactions', 'transactions')->middleware('permission:view_accounts');
         Route::post('{id}/status', 'updateStatus')->middleware('permission:update_accounts');
         Route::post('{id}/toggle-pnd', 'togglePnd')->middleware('permission:update_accounts');
         Route::post('{id}/toggle-pnc', 'togglePnc')->middleware('permission:update_accounts');
@@ -160,10 +170,36 @@ Route::middleware(['user'])->group(function () {
         Route::get('/', 'index')->middleware('permission:view_general_ledgers');
         Route::post('/', 'store')->middleware('permission:create_general_ledgers');
         Route::get('available', 'available')->middleware('permission:view_general_ledgers');
+        Route::get('stats', 'stats')->middleware('permission:view_general_ledgers');
+        Route::get('export/csv', 'exportCsvFile')->middleware('permission:view_general_ledgers');
+        Route::get('export/excel', 'exportExcelFile')->middleware('permission:view_general_ledgers');
+        Route::get('export/pdf', 'exportPdfFile')->middleware('permission:view_general_ledgers');
         Route::get('{id}', 'show')->middleware('permission:view_general_ledgers');
         Route::put('{id}', 'update')->middleware('permission:update_general_ledgers');
         Route::delete('{id}', 'destroy')->middleware('permission:delete_general_ledgers');
         Route::post('{id}/status', 'updateStatus')->middleware('permission:update_general_ledgers');
+    });
+
+    Route::prefix('journal-entries')->controller(JournalEntryController::class)->group(function () {
+        Route::get('/', 'index')->middleware('permission:view_general_ledgers');
+        Route::get('export/csv', 'exportCsvFile')->middleware('permission:view_general_ledgers');
+        Route::get('export/excel', 'exportExcelFile')->middleware('permission:view_general_ledgers');
+        Route::get('export/pdf', 'exportPdfFile')->middleware('permission:view_general_ledgers');
+    });
+
+    Route::prefix('financial-transactions')->controller(FinancialTransactionController::class)->group(function () {
+        Route::get('/', 'index')->middleware('permission:view_general_ledgers');
+        Route::get('export/csv', 'exportCsvFile')->middleware('permission:view_general_ledgers');
+        Route::get('export/excel', 'exportExcelFile')->middleware('permission:view_general_ledgers');
+        Route::get('export/pdf', 'exportPdfFile')->middleware('permission:view_general_ledgers');
+    });
+
+    Route::prefix('transactions')->controller(TransactionController::class)->group(function () {
+        Route::get('/', 'index')->middleware('permission:view_general_ledgers');
+        Route::get('types', 'types')->middleware('permission:view_general_ledgers');
+        Route::get('export/csv', 'exportCsvFile')->middleware('permission:view_general_ledgers');
+        Route::get('export/excel', 'exportExcelFile')->middleware('permission:view_general_ledgers');
+        Route::get('export/pdf', 'exportPdfFile')->middleware('permission:view_general_ledgers');
     });
 
     Route::prefix('postings')->controller(PostingController::class)->group(function () {
