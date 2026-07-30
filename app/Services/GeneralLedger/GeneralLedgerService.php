@@ -29,7 +29,7 @@ class GeneralLedgerService
 
     // $search matches the GL's name or gl_code — lets a search-as-you-type picker work
     // against however many ledgers exist without ever loading them all client-side.
-    public function list(int $perPage = 50, ?string $search = null): LengthAwarePaginator
+    public function list(int $perPage = 50, ?string $search = null, ?string $status = null, ?bool $isAssigned = null, ?int $currencyId = null): LengthAwarePaginator
     {
         return GeneralLedger::query()
             ->when($search, function ($query, $search) {
@@ -38,6 +38,9 @@ class GeneralLedgerService
                         ->orWhere('gl_code', 'like', "%{$search}%");
                 });
             })
+            ->when($status, fn ($query, $status) => $query->where('status', $status))
+            ->when(! is_null($isAssigned), fn ($query) => $query->where('is_assigned', $isAssigned))
+            ->when($currencyId, fn ($query, $currencyId) => $query->where('currency_id', $currencyId))
             ->latest()
             ->paginate($perPage)
             ->withQueryString();

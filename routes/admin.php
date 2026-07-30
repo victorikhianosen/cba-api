@@ -185,6 +185,7 @@ Route::middleware(['user'])->group(function () {
         Route::get('export/csv', 'exportCsvFile')->middleware('permission:view_general_ledgers');
         Route::get('export/excel', 'exportExcelFile')->middleware('permission:view_general_ledgers');
         Route::get('export/pdf', 'exportPdfFile')->middleware('permission:view_general_ledgers');
+        Route::get('{id}', 'show')->middleware('permission:view_general_ledgers');
     });
 
     Route::prefix('financial-transactions')->controller(FinancialTransactionController::class)->group(function () {
@@ -192,6 +193,7 @@ Route::middleware(['user'])->group(function () {
         Route::get('export/csv', 'exportCsvFile')->middleware('permission:view_general_ledgers');
         Route::get('export/excel', 'exportExcelFile')->middleware('permission:view_general_ledgers');
         Route::get('export/pdf', 'exportPdfFile')->middleware('permission:view_general_ledgers');
+        Route::get('{id}', 'show')->middleware('permission:view_general_ledgers');
     });
 
     Route::prefix('transactions')->controller(TransactionController::class)->group(function () {
@@ -200,11 +202,13 @@ Route::middleware(['user'])->group(function () {
         Route::get('export/csv', 'exportCsvFile')->middleware('permission:view_general_ledgers');
         Route::get('export/excel', 'exportExcelFile')->middleware('permission:view_general_ledgers');
         Route::get('export/pdf', 'exportPdfFile')->middleware('permission:view_general_ledgers');
+        Route::get('{id}', 'show')->middleware('permission:view_general_ledgers');
     });
 
     Route::prefix('postings')->controller(PostingController::class)->group(function () {
         Route::get('/', 'index')->middleware('permission:view_postings');
         Route::post('/', 'store')->middleware('permission:create_postings');
+        Route::post('bulk-approve', 'bulkApprove')->middleware('permission:approve_postings');
         Route::get('{id}', 'show')->middleware('permission:view_postings');
         Route::post('{id}/approve', 'approve')->middleware('permission:approve_postings');
         Route::post('{id}/reject', 'reject')->middleware('permission:approve_postings');

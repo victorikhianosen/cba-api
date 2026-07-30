@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\Admin\Posting\TransactionListResource;
 use App\Http\Resources\Admin\Posting\TransactionResource;
 use App\Services\Transaction\TransactionService;
 use App\Traits\ApiResponse;
 use App\Traits\Exportable;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -31,12 +33,31 @@ class TransactionController extends Controller
             $request->string('search')->trim()->value() ?: null,
             $request->string('transaction_type')->trim()->value() ?: null,
             $request->string('direction')->trim()->value() ?: null,
+            $request->string('status')->trim()->value() ?: null,
         );
 
         return $this->success(
             message: 'Transactions retrieved successfully.',
-            data: TransactionResource::collection($transactions),
+            data: TransactionListResource::collection($transactions),
         );
+    }
+
+    public function show(int $id): JsonResponse
+    {
+        try {
+            $transaction = $this->transactions->find($id);
+
+            return $this->success(
+                message: 'Transaction retrieved successfully.',
+                data: new TransactionResource($transaction),
+            );
+        } catch (ModelNotFoundException $e) {
+            return $this->error(
+                message: 'The requested transaction was not found.',
+                responseCode: '404',
+                statusCode: 404,
+            );
+        }
     }
 
     // Every transaction_type value currently in use — feeds the type filter dropdown so
@@ -57,9 +78,10 @@ class TransactionController extends Controller
         $search          = $request->string('search')->trim()->value() ?: null;
         $transactionType = $request->string('transaction_type')->trim()->value() ?: null;
         $direction       = $request->string('direction')->trim()->value() ?: null;
+        $status          = $request->string('status')->trim()->value() ?: null;
 
         $rows = $this->transactions
-            ->cursorForExport($from, $to, $accountId, $search, $transactionType, $direction)
+            ->cursorForExport($from, $to, $accountId, $search, $transactionType, $direction, $status)
             ->map(fn ($transaction) => [
                 'Date'                  => optional($transaction->posting_date)->toDateString(),
                 'Reference'             => $transaction->reference,
@@ -94,9 +116,10 @@ class TransactionController extends Controller
         $search          = $request->string('search')->trim()->value() ?: null;
         $transactionType = $request->string('transaction_type')->trim()->value() ?: null;
         $direction       = $request->string('direction')->trim()->value() ?: null;
+        $status          = $request->string('status')->trim()->value() ?: null;
 
         $rows = $this->transactions
-            ->cursorForExport($from, $to, $accountId, $search, $transactionType, $direction)
+            ->cursorForExport($from, $to, $accountId, $search, $transactionType, $direction, $status)
             ->map(fn ($transaction) => [
                 'Date'                  => optional($transaction->posting_date)->toDateString(),
                 'Reference'             => $transaction->reference,
@@ -131,8 +154,9 @@ class TransactionController extends Controller
         $search          = $request->string('search')->trim()->value() ?: null;
         $transactionType = $request->string('transaction_type')->trim()->value() ?: null;
         $direction       = $request->string('direction')->trim()->value() ?: null;
+        $status          = $request->string('status')->trim()->value() ?: null;
 
-        $total = $this->transactions->countForFilter($from, $to, $accountId, $search, $transactionType, $direction);
+        $total = $this->transactions->countForFilter($from, $to, $accountId, $search, $transactionType, $direction, $status);
 
         if ($total > self::PDF_EXPORT_ROW_LIMIT) {
             return $this->error(
@@ -143,7 +167,7 @@ class TransactionController extends Controller
         }
 
         $rows = $this->transactions
-            ->cursorForExport($from, $to, $accountId, $search, $transactionType, $direction)
+            ->cursorForExport($from, $to, $accountId, $search, $transactionType, $direction, $status)
             ->map(fn ($transaction) => [
                 optional($transaction->posting_date)->toDateString(),
                 $transaction->reference,

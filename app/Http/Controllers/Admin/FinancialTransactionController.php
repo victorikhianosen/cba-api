@@ -9,6 +9,7 @@ use App\Http\Resources\Admin\Posting\FinancialTransactionResource;
 use App\Services\FinancialTransaction\FinancialTransactionService;
 use App\Traits\ApiResponse;
 use App\Traits\Exportable;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -35,6 +36,24 @@ class FinancialTransactionController extends Controller
             message: 'Financial transactions retrieved successfully.',
             data: FinancialTransactionResource::collection($transactions),
         );
+    }
+
+    public function show(int $id): JsonResponse
+    {
+        try {
+            $transaction = $this->financialTransactions->find($id);
+
+            return $this->success(
+                message: 'Financial transaction retrieved successfully.',
+                data: new FinancialTransactionResource($transaction),
+            );
+        } catch (ModelNotFoundException $e) {
+            return $this->error(
+                message: 'The requested financial transaction was not found.',
+                responseCode: '404',
+                statusCode: 404,
+            );
+        }
     }
 
     public function exportCsvFile(Request $request)

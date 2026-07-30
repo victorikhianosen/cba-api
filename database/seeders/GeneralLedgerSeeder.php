@@ -16,7 +16,6 @@ class GeneralLedgerSeeder extends Seeder
         // name, classification, type
 
         // Savings/current product roles (AccountProductType)
-        ['Savings Reference', 'asset', 'cash'],
         ['Savings Control', 'liability', 'savings_control'],
         ['Interest On Savings', 'expense', 'interest_expense'],
         ['Income From Fees', 'income', 'fee_income'],

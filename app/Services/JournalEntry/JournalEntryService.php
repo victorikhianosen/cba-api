@@ -37,6 +37,14 @@ class JournalEntryService
         return $this->filtered($from, $to, $generalLedgerId, $search)->count();
     }
 
+    public function find(int $id): JournalEntry
+    {
+        return JournalEntry::with([
+            'generalLedger', 'currency', 'branch', 'createdBy',
+            'financialTransaction.customer', 'financialTransaction.currency',
+        ])->findOrFail($id);
+    }
+
     private function filtered(?string $from, ?string $to, ?int $generalLedgerId, ?string $search = null): Builder
     {
         return JournalEntry::query()

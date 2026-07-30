@@ -11,9 +11,9 @@ use Illuminate\Support\LazyCollection;
 
 class TransactionService
 {
-    public function list(int $perPage = 50, ?string $from = null, ?string $to = null, ?int $accountId = null, ?string $search = null, ?string $transactionType = null, ?string $direction = null): LengthAwarePaginator
+    public function list(int $perPage = 50, ?string $from = null, ?string $to = null, ?int $accountId = null, ?string $search = null, ?string $transactionType = null, ?string $direction = null, ?string $status = null): LengthAwarePaginator
     {
-        return $this->filtered($from, $to, $accountId, $search, $transactionType, $direction)
+        return $this->filtered($from, $to, $accountId, $search, $transactionType, $direction, $status)
             ->with(['account', 'customer', 'currency'])
             ->latest('posting_date')
             ->latest('id')
@@ -21,20 +21,25 @@ class TransactionService
             ->withQueryString();
     }
 
+    public function find(int $id): Transaction
+    {
+        return Transaction::with(['account', 'customer', 'currency'])->findOrFail($id);
+    }
+
     // A cursor, not a Collection — never loads more than one row into memory at a time,
     // so exporting stays flat regardless of how many transactions match the filter.
-    public function cursorForExport(?string $from = null, ?string $to = null, ?int $accountId = null, ?string $search = null, ?string $transactionType = null, ?string $direction = null): LazyCollection
+    public function cursorForExport(?string $from = null, ?string $to = null, ?int $accountId = null, ?string $search = null, ?string $transactionType = null, ?string $direction = null, ?string $status = null): LazyCollection
     {
-        return $this->filtered($from, $to, $accountId, $search, $transactionType, $direction)
+        return $this->filtered($from, $to, $accountId, $search, $transactionType, $direction, $status)
             ->with(['account', 'customer', 'currency'])
             ->orderBy('posting_date')
             ->orderBy('id')
             ->cursor();
     }
 
-    public function countForFilter(?string $from = null, ?string $to = null, ?int $accountId = null, ?string $search = null, ?string $transactionType = null, ?string $direction = null): int
+    public function countForFilter(?string $from = null, ?string $to = null, ?int $accountId = null, ?string $search = null, ?string $transactionType = null, ?string $direction = null, ?string $status = null): int
     {
-        return $this->filtered($from, $to, $accountId, $search, $transactionType, $direction)->count();
+        return $this->filtered($from, $to, $accountId, $search, $transactionType, $direction, $status)->count();
     }
 
     // Every distinct transaction_type value in use — powers the type filter dropdown
@@ -49,7 +54,7 @@ class TransactionService
             ->all();
     }
 
-    private function filtered(?string $from, ?string $to, ?int $accountId, ?string $search = null, ?string $transactionType = null, ?string $direction = null): Builder
+    private function filtered(?string $from, ?string $to, ?int $accountId, ?string $search = null, ?string $transactionType = null, ?string $direction = null, ?string $status = null): Builder
     {
         return Transaction::query()
             ->when($from, fn ($query, $from) => $query->whereDate('posting_date', '>=', $from))
@@ -57,6 +62,7 @@ class TransactionService
             ->when($accountId, fn ($query, $id) => $query->where('account_id', $id))
             ->when($transactionType, fn ($query, $type) => $query->where('transaction_type', $type))
             ->when($direction, fn ($query, $direction) => $query->where('direction', $direction))
+            ->when($status, fn ($query, $status) => $query->where('status', $status))
             ->when($search, function ($query, $search) {
                 $query->where(function ($query) use ($search) {
                     $query->where('narration', 'like', "%{$search}%")

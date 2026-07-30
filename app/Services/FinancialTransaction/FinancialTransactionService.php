@@ -35,6 +35,21 @@ class FinancialTransactionService
         return $this->filtered($from, $to, $status, $search)->count();
     }
 
+    public function find(int $id): FinancialTransaction
+    {
+        return FinancialTransaction::with([
+            'customer',
+            'currency',
+            'journalEntries.generalLedger',
+            'journalEntries.currency',
+            'transactions.account',
+            'transactions.customer',
+            'transactions.currency',
+            'branch',
+            'reversalTransaction',
+        ])->findOrFail($id);
+    }
+
     private function filtered(?string $from, ?string $to, ?string $status, ?string $search = null): Builder
     {
         return FinancialTransaction::query()

@@ -373,19 +373,39 @@ class CustomerService
     // are performed; approval itself no longer depends on documents.
     public function approve(Customer $customer, array $data = []): Customer
     {
-        if ($customer->status !== 'pending') {
-            throw ValidationException::withMessages([
-                'status' => ["Only pending customers can be approved. This customer is currently '{$customer->status}'."],
-            ]);
-        }
-
         $actor = Auth::guard('user')->user();
 
-        $customer->update([
-            'status'      => 'active',
-            'approved_by' => $actor?->id,
-            'approved_at' => now(),
-        ]);
+        DB::transaction(function () use ($customer, $data, $actor) {
+            // Locked + re-checked inside the transaction so a concurrent approve/reject
+            // on the same customer can't both pass the status check and interleave —
+            // whichever request gets here second sees the already-updated status.
+            $lockedCustomer = Customer::whereKey($customer->id)->lockForUpdate()->firstOrFail();
+
+            if ($lockedCustomer->status !== 'pending') {
+                throw ValidationException::withMessages([
+                    'status' => ["Only pending customers can be approved. This customer is currently '{$lockedCustomer->status}'."],
+                ]);
+            }
+
+            $customer->update([
+                'status'      => 'active',
+                'approved_by' => $actor?->id,
+                'approved_at' => now(),
+            ]);
+
+            // Kept inside the same transaction as the status change — if account
+            // opening fails, the customer is rolled back to pending rather than
+            // left permanently "active" with no account.
+            if (! empty($data['account_product_id'])) {
+                $accountProduct = AccountProduct::findOrFail($data['account_product_id']);
+
+                $this->accounts->openAccountForCustomer($customer, [
+                    'account_product_id' => $accountProduct->id,
+                    'account_type'       => $accountProduct->product_type,
+                    'account_tier_id'    => $data['account_tier_id'] ?? null,
+                ]);
+            }
+        });
 
         $customer->refresh();
 
@@ -398,35 +418,29 @@ class CustomerService
             description: "Customer '{$this->displayName($customer)}' ({$customer->cif_number}) was approved by '{$actor?->username}'.",
         );
 
-        if (! empty($data['account_product_id'])) {
-            $accountProduct = AccountProduct::findOrFail($data['account_product_id']);
-
-            $this->accounts->openAccountForCustomer($customer, [
-                'account_product_id' => $accountProduct->id,
-                'account_type'       => $accountProduct->product_type,
-                'account_tier_id'    => $data['account_tier_id'] ?? null,
-            ]);
-        }
-
         return $customer;
     }
 
     public function reject(Customer $customer, string $reason): Customer
     {
-        if ($customer->status !== 'pending') {
-            throw ValidationException::withMessages([
-                'status' => ["Only pending customers can be rejected. This customer is currently '{$customer->status}'."],
-            ]);
-        }
-
         $actor = Auth::guard('user')->user();
 
-        $customer->update([
-            'status'           => 'rejected',
-            'rejected_by'      => $actor?->id,
-            'rejected_at'      => now(),
-            'rejection_reason' => $reason,
-        ]);
+        DB::transaction(function () use ($customer, $reason, $actor) {
+            $lockedCustomer = Customer::whereKey($customer->id)->lockForUpdate()->firstOrFail();
+
+            if ($lockedCustomer->status !== 'pending') {
+                throw ValidationException::withMessages([
+                    'status' => ["Only pending customers can be rejected. This customer is currently '{$lockedCustomer->status}'."],
+                ]);
+            }
+
+            $customer->update([
+                'status'           => 'rejected',
+                'rejected_by'      => $actor?->id,
+                'rejected_at'      => now(),
+                'rejection_reason' => $reason,
+            ]);
+        });
 
         $customer->refresh();
 
@@ -445,21 +459,26 @@ class CustomerService
     // Banking rule: an onboarded customer is never deleted — closing is a status change (with reason + audit trail), never a hard or soft delete.
     public function close(Customer $customer, string $reason): Customer
     {
-        if ($customer->status === 'closed') {
-            throw ValidationException::withMessages([
-                'status' => ['This customer is already closed.'],
-            ]);
-        }
-
-        $before = $customer->status;
         $actor  = Auth::guard('user')->user();
+        $before = $customer->status;
 
-        $customer->update([
-            'status'          => 'closed',
-            'closed_by'       => $actor?->id,
-            'closed_at'       => now(),
-            'closure_reason'  => $reason,
-        ]);
+        DB::transaction(function () use ($customer, $reason, $actor, &$before) {
+            $lockedCustomer = Customer::whereKey($customer->id)->lockForUpdate()->firstOrFail();
+            $before         = $lockedCustomer->status;
+
+            if ($lockedCustomer->status === 'closed') {
+                throw ValidationException::withMessages([
+                    'status' => ['This customer is already closed.'],
+                ]);
+            }
+
+            $customer->update([
+                'status'          => 'closed',
+                'closed_by'       => $actor?->id,
+                'closed_at'       => now(),
+                'closure_reason'  => $reason,
+            ]);
+        });
 
         $customer->refresh();
 

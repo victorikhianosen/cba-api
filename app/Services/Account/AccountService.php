@@ -12,6 +12,7 @@ use App\Models\Customer;
 use App\Models\Transaction;
 use App\Services\Audit\AuditService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -78,7 +79,7 @@ class AccountService
     // Lets an already-onboarded customer open an additional account; the requested type must match the product's own type. One transaction — if anything fails, nothing is created.
     public function openAccountForCustomer(Customer $customer, array $data): Account
     {
-        $account = DB::transaction(function () use ($customer, $data) {
+        $account = $this->transactionWithAccountNumberRetry(function () use ($customer, $data) {
             $accountProduct = AccountProduct::findOrFail($data['account_product_id']);
 
             if ($accountProduct->status !== 'active') {
@@ -212,7 +213,7 @@ class AccountService
             return null;
         }
 
-        $account = DB::transaction(function () use ($customer, $accountProduct) {
+        $account = $this->transactionWithAccountNumberRetry(function () use ($customer, $accountProduct) {
             $accountTier = AccountTier::where('level', 1)->where('status', 'active')->first();
             $actor       = Auth::guard('user')->user();
 
@@ -261,6 +262,28 @@ class AccountService
         return in_array($customer->customer_type, CustomerType::businessLike(), true)
             ? (string) $customer->business_name
             : trim("{$customer->first_name} {$customer->last_name}");
+    }
+
+    // generateUniqueAccountNumber()'s lockForUpdate() has nothing to lock when a product-type
+    // prefix has zero existing accounts, so two concurrent "first account under this prefix"
+    // requests can compute the same number. The account_number column is DB-unique, so that
+    // collision surfaces as a QueryException at INSERT rather than a silent duplicate — this
+    // retries account creation a few times on that specific error instead of failing the request.
+    private function transactionWithAccountNumberRetry(callable $callback): Account
+    {
+        $attempts = 0;
+
+        while (true) {
+            try {
+                return DB::transaction($callback);
+            } catch (QueryException $e) {
+                $attempts++;
+
+                if ($attempts >= 3 || $e->getCode() !== '23000') {
+                    throw $e;
+                }
+            }
+        }
     }
 
     // Account numbers are sequential per product type, not random. Must be called inside a DB::transaction so lockForUpdate() actually holds the lock until commit.

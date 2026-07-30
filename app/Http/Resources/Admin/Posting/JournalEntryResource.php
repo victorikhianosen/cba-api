@@ -32,6 +32,27 @@ class JournalEntryResource extends JsonResource
             'posting_date'      => $this->posting_date,
             'narration'         => $this->narration,
             'created_at'        => $this->created_at,
+
+            'financial_transaction_id' => $this->financial_transaction_id,
+            'financial_transaction'    => $this->whenLoaded('financialTransaction', fn () => $this->financialTransaction ? [
+                'id'                    => $this->financialTransaction->id,
+                'transaction_reference' => $this->financialTransaction->transaction_reference,
+                'module'                => $this->financialTransaction->module,
+                'transaction_type'      => $this->financialTransaction->transaction_type,
+                'status'                => $this->financialTransaction->status,
+                'customer'              => $this->financialTransaction->relationLoaded('customer') && $this->financialTransaction->customer ? [
+                    'id'         => $this->financialTransaction->customer->id,
+                    'cif_number' => $this->financialTransaction->customer->cif_number,
+                    'full_name'  => trim("{$this->financialTransaction->customer->first_name} {$this->financialTransaction->customer->last_name}") ?: $this->financialTransaction->customer->business_name,
+                ] : null,
+            ] : null),
+
+            'branch' => $this->whenLoaded('branch', fn () => $this->branch ? [
+                'id'   => $this->branch->id,
+                'name' => $this->branch->name,
+            ] : null),
+
+            'created_by' => $this->whenLoaded('createdBy', fn () => $this->createdBy?->username),
         ];
     }
 }

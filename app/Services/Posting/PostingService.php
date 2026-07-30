@@ -98,6 +98,19 @@ class PostingService
         }
 
         $financialTransaction = DB::transaction(function () use ($posting, $actor) {
+            // Re-check under a row lock: the unlocked check above is only a fast-path
+            // for the common case. Without this, two concurrent approve() calls for
+            // the same posting (two admins clicking at once, or a bulk-approve batch
+            // racing a single approve) could both pass the earlier check and both post
+            // — this lock plus the pending guard is what actually prevents that.
+            $lockedPosting = Posting::whereKey($posting->id)->lockForUpdate()->firstOrFail();
+
+            if ($lockedPosting->status !== PostingStatus::PENDING->value) {
+                throw ValidationException::withMessages([
+                    'status' => ['Only pending postings can be approved.'],
+                ]);
+            }
+
             [$source, $destination] = $this->verify(
                 $posting->source_type,
                 $posting->source_id,
@@ -174,24 +187,63 @@ class PostingService
         return $financialTransaction;
     }
 
-    public function reject(Posting $posting, string $reason): Posting
+    // Approves each posting independently — a rejection-worthy failure on one (insufficient
+    // funds, self-approval, already-approved) never blocks or rolls back the others, since
+    // approve() already wraps each posting in its own DB::transaction.
+    public function bulkApprove(array $ids): array
     {
-        if ($posting->status !== PostingStatus::PENDING->value) {
-            throw ValidationException::withMessages([
-                'status' => ['Only pending postings can be rejected.'],
-            ]);
+        $results = [];
+
+        foreach ($ids as $id) {
+            try {
+                $posting = $this->find((int) $id);
+
+                if ($posting->status !== PostingStatus::PENDING->value) {
+                    throw ValidationException::withMessages([
+                        'status' => ['Only pending postings can be approved.'],
+                    ]);
+                }
+
+                $this->approve($posting);
+
+                $results[] = ['id' => $id, 'reference' => $posting->reference, 'status' => 'approved'];
+            } catch (ValidationException $e) {
+                $results[] = ['id' => $id, 'status' => 'failed', 'reason' => $e->getMessage()];
+            } catch (\Throwable $e) {
+                report($e);
+                $results[] = ['id' => $id, 'status' => 'failed', 'reason' => 'We are unable to process this posting, please try again.'];
+            }
         }
 
+        return $results;
+    }
+
+    public function reject(Posting $posting, string $reason): Posting
+    {
         $actor = Auth::guard('user')->user();
 
-        $posting->update([
-            'status'           => PostingStatus::REJECTED->value,
-            'reviewed_by'      => $actor?->id,
-            'reviewed_at'      => now(),
-            'rejected_by'      => $actor?->id,
-            'rejected_at'      => now(),
-            'rejection_reason' => $reason,
-        ]);
+        DB::transaction(function () use ($posting, $reason, $actor) {
+            // Locked + re-checked so this can't race a concurrent approve() (or bulk-approve)
+            // of the same posting — without this, reject() could overwrite the status to
+            // REJECTED after approve() already moved money and posted the ledger legs.
+            $lockedPosting = Posting::whereKey($posting->id)->lockForUpdate()->firstOrFail();
+
+            if ($lockedPosting->status !== PostingStatus::PENDING->value) {
+                throw ValidationException::withMessages([
+                    'status' => ['Only pending postings can be rejected.'],
+                ]);
+            }
+
+            $posting->update([
+                'status'           => PostingStatus::REJECTED->value,
+                'reviewed_by'      => $actor?->id,
+                'reviewed_at'      => now(),
+                'rejected_by'      => $actor?->id,
+                'rejected_at'      => now(),
+                'rejection_reason' => $reason,
+            ]);
+        });
+
         $posting->refresh();
 
         $this->audit->log(

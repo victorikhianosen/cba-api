@@ -63,6 +63,7 @@ class TransactionResource extends JsonResource
             'posting_date'    => $this->posting_date,
             'status'          => $this->status,
             'narration'       => $this->narration,
+            'metadata'        => $this->metadata,
             'created_at'      => $this->created_at,
         ];
     }

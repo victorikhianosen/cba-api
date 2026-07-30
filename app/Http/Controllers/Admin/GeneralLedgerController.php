@@ -27,7 +27,17 @@ class GeneralLedgerController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $generalLedgers = $this->generalLedgers->list($request->integer('per_page', 50), $request->string('search')->trim()->value() ?: null);
+        $isAssigned = $request->has('is_assigned') && $request->string('is_assigned')->trim()->value() !== ''
+            ? $request->boolean('is_assigned')
+            : null;
+
+        $generalLedgers = $this->generalLedgers->list(
+            $request->integer('per_page', 50),
+            $request->string('search')->trim()->value() ?: null,
+            $request->string('status')->trim()->value() ?: null,
+            $isAssigned,
+            $request->integer('currency_id') ?: null,
+        );
 
         return $this->success(
             message: 'General ledgers retrieved successfully.',

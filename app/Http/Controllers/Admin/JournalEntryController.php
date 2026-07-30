@@ -9,6 +9,7 @@ use App\Http\Resources\Admin\Posting\JournalEntryResource;
 use App\Services\JournalEntry\JournalEntryService;
 use App\Traits\ApiResponse;
 use App\Traits\Exportable;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -35,6 +36,24 @@ class JournalEntryController extends Controller
             message: 'Journal entries retrieved successfully.',
             data: JournalEntryResource::collection($entries),
         );
+    }
+
+    public function show(int $id): JsonResponse
+    {
+        try {
+            $entry = $this->journalEntries->find($id);
+
+            return $this->success(
+                message: 'Journal entry retrieved successfully.',
+                data: new JournalEntryResource($entry),
+            );
+        } catch (ModelNotFoundException $e) {
+            return $this->error(
+                message: 'The requested journal entry was not found.',
+                responseCode: '404',
+                statusCode: 404,
+            );
+        }
     }
 
     public function exportCsvFile(Request $request)
