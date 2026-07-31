@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Requests\Admin\InvestmentProduct;
 
 use App\Enums\Product\AccountProductType;
-use App\Rules\StrictInteger;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -24,42 +23,31 @@ class StoreInvestmentProductRequest extends FormRequest
                 'name' => strtolower(str_replace(' ', '_', trim($this->name))),
             ]);
         }
-
-        if ($this->filled('interest_calculation_days_in_year')) {
-            $this->merge([
-                'interest_calculation_days_in_year' => (string) $this->interest_calculation_days_in_year,
-            ]);
-        }
     }
 
     public function rules(): array
     {
         return [
             'name'          => ['required', 'string', 'max:255', 'unique:investment_products,name'],
+            'short_name'    => ['nullable', 'string', 'max:45'],
+            'icon'          => ['nullable', 'string', 'max:255'],
             'description'   => ['nullable', 'string'],
             'currency_id'   => ['required', 'integer', 'exists:currencies,id'],
             'interest_rate' => ['nullable', 'numeric', 'min:0'],
-            'interest_type'                   => ['nullable', Rule::in(['flat', 'daily_balance', 'average_daily_balance', 'tiered'])],
-            'interest_compounding_period'     => ['nullable', Rule::in(['daily', 'weekly', 'monthly', 'quarterly', 'annually'])],
-            'interest_posting_period'         => ['nullable', Rule::in(['daily', 'monthly', 'quarterly', 'bi_annually', 'annually'])],
-            'interest_calculation_days_in_year' => ['nullable', Rule::in(['360', '365'])],
-            'min_required_opening_balance'    => ['nullable', 'integer', new StrictInteger, 'min:0'],
-            'min_required_balance'            => ['nullable', 'integer', new StrictInteger, 'min:0'],
-            'locking_period_frequency'        => ['nullable', 'integer', 'min:1'],
-            'locking_period_frequency_type'   => ['nullable', Rule::in(['days', 'weeks', 'months', 'years'])],
+            'interest_posting_period' => ['nullable', Rule::in(['upfront', 'daily', 'weekly', 'monthly', 'quarterly', 'bi_annually', 'annually', 'bullet'])],
 
-            // Fixed deposit terms — Fineract m_deposit_product_term_and_preclosure field names.
-            'min_deposit_term'                     => ['nullable', 'integer', 'min:1'],
-            'max_deposit_term'                     => ['nullable', 'integer', 'min:1', 'gte:min_deposit_term'],
-            'min_deposit_term_type'                 => ['nullable', Rule::in(['days', 'weeks', 'months', 'years'])],
-            'max_deposit_term_type'                 => ['nullable', Rule::in(['days', 'weeks', 'months', 'years'])],
-            'in_multiples_of_deposit_term'          => ['nullable', 'integer', 'min:1'],
-            'in_multiples_of_deposit_term_type'     => ['nullable', Rule::in(['days', 'weeks', 'months', 'years'])],
-            'min_deposit_amount'                    => ['nullable', 'integer', new StrictInteger, 'min:0'],
-            'max_deposit_amount'                    => ['nullable', 'integer', new StrictInteger, 'min:0', 'gte:min_deposit_amount'],
-            'pre_closure_penal_applicable'          => ['nullable', 'boolean'],
-            'pre_closure_penal_interest'            => ['nullable', 'numeric', 'min:0', 'required_if:pre_closure_penal_applicable,true'],
-            'pre_closure_penal_interest_on_type'    => ['nullable', Rule::in(['whole_term', 'till_preclosure_date']), 'required_if:pre_closure_penal_applicable,true'],
+            'tenure'                => ['nullable', 'integer', 'min:1'],
+            'tenure_unit'           => ['nullable', Rule::in(['days', 'weeks', 'months', 'years'])],
+            'min_deposit_amount'    => ['nullable', 'numeric', 'min:0'],
+            'max_deposit_amount'    => ['nullable', 'numeric', 'min:0', 'gte:min_deposit_amount'],
+
+            'auto_renew'                    => ['nullable', 'boolean'],
+            'allow_top_up'                  => ['nullable', 'boolean'],
+            'allow_partial_withdrawal'      => ['nullable', 'boolean'],
+            'allow_early_liquidation'       => ['nullable', 'boolean'],
+            'early_liquidation_lock_days'   => ['nullable', 'integer', 'min:0'],
+            'early_liquidation_penalty_rate' => ['nullable', 'numeric', 'min:0'],
+            'is_default'                    => ['nullable', 'boolean'],
 
             // Accounting (cash-based) — Fineract SavingProductAccountingParams field names.
             'savingsControlAccountId'      => ['required', 'integer', 'exists:general_ledgers,id'],

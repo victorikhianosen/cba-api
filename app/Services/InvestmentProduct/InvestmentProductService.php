@@ -50,10 +50,9 @@ class InvestmentProductService
             $generalLedgers = $data['general_ledgers'];
             unset($data['general_ledgers']);
 
-            $data['code']            = $this->generateProductCode();
-            $data['currency_code']   = $currency->code;
-            $data['currency_digits'] = $data['currency_digits'] ?? 2;
-            $data['created_by']      = Auth::guard('user')->id();
+            $data['code']          = $this->generateProductCode();
+            $data['currency_code'] = $currency->code;
+            $data['created_by']    = Auth::guard('user')->id();
 
             $investmentProduct = InvestmentProduct::create($data)->refresh();
 
@@ -92,7 +91,6 @@ class InvestmentProductService
             $data['code'],
             $data['currency_id'],
             $data['currency_code'],
-            $data['currency_digits'],
             $data['status'],
             $data['created_by'],
             $data['approved_by'],

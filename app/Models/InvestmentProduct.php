@@ -15,14 +15,18 @@ class InvestmentProduct extends Model
     protected function casts(): array
     {
         return [
-            'interest_rate'                => 'decimal:6',
-            'min_required_opening_balance'  => 'integer',
-            'min_required_balance'          => 'integer',
-            'min_deposit_amount'            => 'integer',
-            'max_deposit_amount'            => 'integer',
-            'pre_closure_penal_applicable'  => 'boolean',
-            'pre_closure_penal_interest'    => 'decimal:6',
-            'approved_at'                  => 'datetime',
+            'interest_rate'                    => 'decimal:6',
+            'tenure'                           => 'integer',
+            'min_deposit_amount'               => 'decimal:6',
+            'max_deposit_amount'               => 'decimal:6',
+            'auto_renew'                       => 'boolean',
+            'allow_top_up'                     => 'boolean',
+            'allow_partial_withdrawal'         => 'boolean',
+            'allow_early_liquidation'          => 'boolean',
+            'early_liquidation_lock_days'      => 'integer',
+            'early_liquidation_penalty_rate'   => 'decimal:6',
+            'is_default'                       => 'boolean',
+            'approved_at'                      => 'datetime',
         ];
     }
 

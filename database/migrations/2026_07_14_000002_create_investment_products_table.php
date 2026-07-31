@@ -12,57 +12,50 @@ return new class extends Migration
     {
         Schema::create('investment_products', function (Blueprint $table) {
             $table->id();
-
             $table->string('name');
+            $table->string('short_name', 45)->nullable();
+            $table->string('icon')->nullable();
+
             $table->string('code', 45)->unique();
             $table->text('description')->nullable();
 
             $table->foreignId('currency_id')->constrained('currencies')->restrictOnDelete();
             $table->string('currency_code', 3);
-            $table->smallInteger('currency_digits')->default(2);
 
             $table->decimal('interest_rate', 19, 6)->default(0);
-            $table->enum('interest_type', [
-                'flat',
-                'daily_balance',
-                'average_daily_balance',
-                'tiered',
-            ])->default('daily_balance');
-            $table->enum('interest_compounding_period', [
-                'daily', 'weekly', 'monthly', 'quarterly', 'annually',
-            ])->nullable();
+
             $table->enum('interest_posting_period', [
-                'daily', 'monthly', 'quarterly', 'bi_annually', 'annually',
-            ])->nullable();
-            $table->enum('interest_calculation_days_in_year', ['360', '365'])->default('365');
-
-            $table->unsignedBigInteger('min_required_opening_balance')->default(0);
-            $table->unsignedBigInteger('min_required_balance')->default(0);
-
-            $table->unsignedInteger('locking_period_frequency')->nullable();
-            $table->enum('locking_period_frequency_type', [
-                'days', 'weeks', 'months', 'years',
+                'upfront',
+                'daily',
+                'weekly',
+                'monthly',
+                'quarterly',
+                'bi_annually',
+                'annually',
+                'bullet',
             ])->nullable();
 
-            $table->unsignedInteger('min_deposit_term')->nullable();
-            $table->unsignedInteger('max_deposit_term')->nullable();
-            $table->enum('min_deposit_term_type', ['days', 'weeks', 'months', 'years'])->nullable();
-            $table->enum('max_deposit_term_type', ['days', 'weeks', 'months', 'years'])->nullable();
-            $table->unsignedInteger('in_multiples_of_deposit_term')->nullable();
-            $table->enum('in_multiples_of_deposit_term_type', ['days', 'weeks', 'months', 'years'])->nullable();
+            $table->unsignedInteger('tenure')->default(30);
+            $table->enum('tenure_unit', ['days', 'weeks', 'months', 'years'])->default('days');
 
-            $table->unsignedBigInteger('min_deposit_amount')->nullable();
-            $table->unsignedBigInteger('max_deposit_amount')->nullable();
+            $table->decimal('min_deposit_amount', 19, 6)->nullable();
+            $table->decimal('max_deposit_amount', 19, 6)->nullable();
 
-            $table->boolean('pre_closure_penal_applicable')->default(false);
-            $table->decimal('pre_closure_penal_interest', 19, 6)->nullable();
-            $table->enum('pre_closure_penal_interest_on_type', ['whole_term', 'till_preclosure_date'])->nullable();
+            $table->boolean('auto_renew')->default(false);
+            $table->boolean('allow_top_up')->default(false);
+            $table->boolean('allow_partial_withdrawal')->default(false);
+
+            $table->boolean('allow_early_liquidation')->default(true);
+            $table->unsignedInteger('early_liquidation_lock_days')->nullable();
+            $table->decimal('early_liquidation_penalty_rate', 19, 6)->nullable();
 
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('approved_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('approved_at')->nullable();
 
-            $table->string('status')->default('pending');
+            $table->boolean('is_default')->default(false);
+
+            $table->enum('status', ['pending', 'active', 'inactive', 'disabled', 'rejected'])->default('pending');
 
             $table->timestamps();
 

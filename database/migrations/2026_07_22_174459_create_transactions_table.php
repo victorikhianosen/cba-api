@@ -23,6 +23,30 @@ return new class extends Migration
             $table->foreignId('account_id')->constrained('accounts');
             $table->foreignId('customer_id')->nullable()->constrained('customers')->nullOnDelete();
             $table->string('posting_type')->nullable();
+
+            // Same free-text taxonomy already used on financial_transactions, denormalized
+            // here so a single ledger row is self-describing — no join back up the chain
+            // needed to know it's an interbank transfer, airtime top-up, cable subscription,
+            // etc. New products/services (electricity, betting, card, whatever comes next)
+            // are just new string values in these columns, never a schema or code change.
+            $table->string('module')->nullable()->index(); // e.g. transfers, bills, cards, postings
+            $table->string('transaction_type')->nullable()->index(); // e.g. interbank_transfer, intrabank_transfer, airtime, data, cable_tv, electricity, betting, card_funding
+            $table->string('transaction_subtype')->nullable();
+            $table->string('business_service')->nullable(); // e.g. MTN Airtime, DSTV, IKEDC
+            $table->string('channel')->nullable()->index(); // e.g. mobile, internet_banking, ussd, pos, atm, admin, api
+            $table->string('service_provider')->nullable(); // e.g. Interswitch, NIBSS, Baxi
+            $table->string('provider_reference')->nullable()->index(); // the provider's own transaction id, for reconciliation
+
+            // The other side of this leg, denormalized so "who sent/received this money"
+            // is visible on the row itself — no join to the posting or the sibling
+            // transaction leg required.
+            $table->string('counterparty_type')->nullable(); // account | general_ledger | external_bank
+            $table->unsignedBigInteger('counterparty_id')->nullable();
+            $table->string('counterparty_name')->nullable();
+            $table->string('counterparty_account_number')->nullable()->index();
+            $table->string('counterparty_bank_code')->nullable(); // for interbank/NIP-style transfers to other banks
+            $table->string('counterparty_bank_name')->nullable();
+
             $table->enum('debit_credit', ['debit', 'credit']);
             $table->decimal('amount', 20, 4)->default(0);
             $table->decimal('balance_before', 20, 4)->default(0);
