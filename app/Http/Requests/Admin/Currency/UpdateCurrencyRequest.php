@@ -53,27 +53,9 @@ class UpdateCurrencyRequest extends FormRequest
                     }
                 },
             ],
-            'symbol' => [
-                'sometimes',
-                'nullable',
-                'string',
-                'max:10',
-                function (string $attribute, mixed $value, Closure $fail) use ($currencyId) {
-                    $normalized = trim((string) $value);
-
-                    if ($normalized === '') {
-                        return;
-                    }
-
-                    $exists = Currency::where('symbol', $normalized)
-                        ->where('id', '!=', $currencyId)
-                        ->exists();
-
-                    if ($exists) {
-                        $fail("A currency with symbol '{$normalized}' already exists.");
-                    }
-                },
-            ],
+            // Not unique — many real-world currencies legitimately share a symbol
+            // (e.g. "$" for USD/CAD/AUD/..., "£" for GBP/EGP/SHP/...).
+            'symbol' => ['sometimes', 'nullable', 'string', 'max:10'],
             'buy_rate'         => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'sell_rate'        => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'exchange_rate'    => ['sometimes', 'numeric', 'min:0'],

@@ -119,4 +119,26 @@ class AuthController extends Controller
             );
         }
     }
+
+    // Called by the frontend's own idle timer just before it clears the local session —
+    // the token is still valid at this point, so the resulting journey/audit entries are
+    // correctly attributed as a timeout rather than a manual logout.
+    public function sessionTimeout(Request $request)
+    {
+        try {
+            $this->auth->logout($request->user('user'), eventType: 'session_timeout');
+
+            return $this->success(
+                message: 'Session timed out.',
+            );
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->error(
+                message: 'We are unable to process your request. Please try again.',
+                responseCode: '500',
+                statusCode: 500,
+            );
+        }
+    }
 }

@@ -36,7 +36,7 @@ class UpdateCustomerRequest extends FormRequest
             'last_name'     => ['sometimes', 'nullable', 'string', 'max:255'],
             'business_name' => ['sometimes', 'nullable', 'string', 'max:255'],
 
-            'phone'    => ['sometimes', 'string', 'max:20', Rule::unique('customers', 'phone')->ignore($customerId)],
+            'phone'    => ['sometimes', 'string', 'regex:/^\d+$/', 'max:15', Rule::unique('customers', 'phone')->ignore($customerId)],
             'email'    => ['sometimes', 'nullable', 'email', 'max:255', Rule::unique('customers', 'email')->ignore($customerId)],
             'username' => ['sometimes', 'nullable', 'string', 'max:255', Rule::unique('customers', 'username')->ignore($customerId)],
 
@@ -64,6 +64,13 @@ class UpdateCustomerRequest extends FormRequest
 
             'mother_maiden_name' => ['sometimes', 'nullable', 'string', 'max:255'],
             'spouse_name'        => ['sometimes', 'nullable', 'string', 'max:255'],
+
+            // Arbitrary custom fields the frontend lets a user add on the fly: each entry is
+            // a label/value pair, with no fixed schema on our side. Sending the full
+            // array replaces it wholesale (matches how $customer->update($data) writes it).
+            'metadata'          => ['sometimes', 'nullable', 'array'],
+            'metadata.*.label'  => ['required_with:metadata', 'string', 'max:255'],
+            'metadata.*.value'  => ['nullable', 'string', 'max:1000'],
 
             'profile_picture' => ['sometimes', 'nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'utility_bill'    => ['sometimes', 'nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],

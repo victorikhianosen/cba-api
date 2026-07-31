@@ -35,6 +35,7 @@ class Customer extends Authenticatable
             'id_verified'            => 'boolean',
             'face_verified'          => 'boolean',
             'utility_verified'       => 'boolean',
+            'metadata'               => 'array',
             'approved_at'            => 'datetime',
             'rejected_at'            => 'datetime',
             'closed_at'              => 'datetime',

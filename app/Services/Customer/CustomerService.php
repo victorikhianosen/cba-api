@@ -27,6 +27,7 @@ class CustomerService
     public function __construct(
         private AuditService $audit,
         private AccountService $accounts,
+        private DocumentService $documents,
     ) {}
 
     public function list(int $perPage = 15): LengthAwarePaginator
@@ -392,6 +393,11 @@ class CustomerService
                 'approved_by' => $actor?->id,
                 'approved_at' => now(),
             ]);
+
+            // Approving the customer approves every still-pending document in one
+            // go — reviewers can still approve/reject individual documents earlier,
+            // but nothing should be left stuck at "pending" once the customer is active.
+            $this->documents->approveAllPending($customer, $actor);
 
             // Kept inside the same transaction as the status change — if account
             // opening fails, the customer is rolled back to pending rather than

@@ -27,36 +27,6 @@ class CurrencyService
         return Currency::findOrFail($id);
     }
 
-    public function create(array $data): Currency
-    {
-        $actor = Auth::guard('user')->user();
-
-        $data['code'] = $this->normalizeCode($data['code']);
-        $data['name'] = $this->normalizeName($data['name']);
-
-        if (isset($data['symbol'])) {
-            $data['symbol'] = $this->normalizeSymbol($data['symbol']);
-        }
-
-        $currency = DB::transaction(function () use ($data) {
-            if (! empty($data['is_base_currency'])) {
-                Currency::where('is_base_currency', true)->update(['is_base_currency' => false]);
-            }
-
-            return Currency::create($data)->refresh();
-        });
-
-        $this->audit->log(
-            action: 'created',
-            module: 'currencies',
-            auditable: $currency,
-            after: $currency->toArray(),
-            description: "Currency '{$currency->name}' ({$currency->code}) was created by '{$actor?->username}'.",
-        );
-
-        return $currency;
-    }
-
     public function update(Currency $currency, array $data): Currency
     {
         $before = $currency->toArray();

@@ -12,6 +12,7 @@ use App\Http\Resources\Admin\Posting\PostingResource;
 use App\Jobs\BulkApprovePostingsJob;
 use App\Services\Posting\PostingService;
 use App\Traits\ApiResponse;
+use App\Traits\Exportable;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,6 +22,7 @@ use Illuminate\Validation\ValidationException;
 class PostingController extends Controller
 {
     use ApiResponse;
+    use Exportable;
 
     public function __construct(
         private PostingService $postings,
@@ -28,7 +30,14 @@ class PostingController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $postings = $this->postings->list($request->integer('per_page', 15));
+        $postings = $this->postings->list(
+            $request->integer('per_page', 15),
+            $request->string('from')->trim()->value() ?: null,
+            $request->string('to')->trim()->value() ?: null,
+            $request->string('search')->trim()->value() ?: null,
+            $request->string('status')->trim()->value() ?: null,
+            $request->string('type')->trim()->value() ?: null,
+        );
 
         return $this->success(
             message: 'Postings retrieved successfully.',
@@ -135,6 +144,121 @@ class PostingController extends Controller
         return $this->success(
             message: count($ids) . ' posting(s) queued for approval — they will update shortly.',
         );
+    }
+
+    public function exportCsvFile(Request $request)
+    {
+        [$from, $to, $search, $status, $type] = $this->exportFilters($request);
+
+        $rows = $this->postings
+            ->cursorForExport($from, $to, $search, $status, $type)
+            ->map(fn ($posting) => [
+                'Date'                  => optional($posting->created_at)->toDateString(),
+                'Reference'             => $posting->reference,
+                'Transaction Reference' => $posting->transaction_reference,
+                'Source Type'           => $posting->source_type,
+                'Source'                => $this->partyLabel($posting->source_type, $posting->source_id),
+                'Destination Type'      => $posting->destination_type,
+                'Destination'           => $this->partyLabel($posting->destination_type, $posting->destination_id),
+                'Amount'                => (string) $posting->amount,
+                'Fee'                   => (string) $posting->fee,
+                'Vat'                   => (string) $posting->vat,
+                'Total Amount'          => (string) $posting->total_amount,
+                'Status'                => $posting->status,
+                'Remarks'               => $posting->remarks,
+            ]);
+
+        return $this->exportCsv('postings.csv', $rows);
+    }
+
+    public function exportExcelFile(Request $request)
+    {
+        [$from, $to, $search, $status, $type] = $this->exportFilters($request);
+
+        $rows = $this->postings
+            ->cursorForExport($from, $to, $search, $status, $type)
+            ->map(fn ($posting) => [
+                'Date'                  => optional($posting->created_at)->toDateString(),
+                'Reference'             => $posting->reference,
+                'Transaction Reference' => $posting->transaction_reference,
+                'Source Type'           => $posting->source_type,
+                'Source'                => $this->partyLabel($posting->source_type, $posting->source_id),
+                'Destination Type'      => $posting->destination_type,
+                'Destination'           => $this->partyLabel($posting->destination_type, $posting->destination_id),
+                'Amount'                => (string) $posting->amount,
+                'Fee'                   => (string) $posting->fee,
+                'Vat'                   => (string) $posting->vat,
+                'Total Amount'          => (string) $posting->total_amount,
+                'Status'                => $posting->status,
+                'Remarks'               => $posting->remarks,
+            ]);
+
+        return $this->exportExcel('postings.xlsx', $rows);
+    }
+
+    public function exportPdfFile(Request $request)
+    {
+        [$from, $to, $search, $status, $type] = $this->exportFilters($request);
+
+        $total = $this->postings->countForFilter($from, $to, $search, $status, $type);
+
+        if ($total > self::PDF_EXPORT_ROW_LIMIT) {
+            return $this->error(
+                message: "This filter matches {$total} postings — PDF export is limited to " . self::PDF_EXPORT_ROW_LIMIT . '. Narrow the date range or use CSV export instead.',
+                responseCode: '101',
+                statusCode: 422,
+            );
+        }
+
+        $rows = $this->postings
+            ->cursorForExport($from, $to, $search, $status, $type)
+            ->map(fn ($posting) => [
+                optional($posting->created_at)->toDateString(),
+                $posting->reference,
+                $this->partyLabel($posting->source_type, $posting->source_id),
+                $this->partyLabel($posting->destination_type, $posting->destination_id),
+                number_format((float) $posting->amount, 2),
+                strtoupper($posting->status),
+            ])
+            ->all();
+
+        return $this->exportPdf('exports.table', [
+            'title'   => 'Postings',
+            'headers' => ['Date', 'Reference', 'Source', 'Destination', 'Amount', 'Status'],
+            'rows'    => $rows,
+            'from'    => $from,
+            'to'      => $to,
+        ], 'postings.pdf');
+    }
+
+    private function exportFilters(Request $request): array
+    {
+        return [
+            $request->string('from')->trim()->value() ?: null,
+            $request->string('to')->trim()->value() ?: null,
+            $request->string('search')->trim()->value() ?: null,
+            $request->string('status')->trim()->value() ?: null,
+            $request->string('type')->trim()->value() ?: null,
+        ];
+    }
+
+    // Same party resolution as PostingResource — just flattened to a single display string for exports.
+    private function partyLabel(?string $type, ?int $id): ?string
+    {
+        if (! $type || ! $id) {
+            return null;
+        }
+
+        $class = \Illuminate\Database\Eloquent\Relations\Relation::getMorphedModel($type);
+        $model = $class ? $class::find($id) : null;
+
+        if (! $model) {
+            return null;
+        }
+
+        return $model instanceof \App\Models\Account
+            ? "{$model->account_name} ({$model->account_number})"
+            : "{$model->name} ({$model->gl_code})";
     }
 
     public function reject(RejectPostingRequest $request, int $id): JsonResponse

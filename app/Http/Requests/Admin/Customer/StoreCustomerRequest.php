@@ -41,7 +41,7 @@ class StoreCustomerRequest extends FormRequest
             'middle_name'    => ['nullable', 'string', 'max:255'],
             'last_name'      => ["required_if:customer_type,individual,minor,{$businessLikeTypes}", 'nullable', 'string', 'max:255'],
 
-            'phone'    => ['required', 'string', 'max:20', 'unique:customers,phone'],
+            'phone'    => ['required', 'string', 'regex:/^\d+$/', 'max:15', 'unique:customers,phone'],
             'email'    => ['nullable', 'email', 'max:255', 'unique:customers,email'],
             'username' => ['nullable', 'string', 'max:255', 'unique:customers,username'],
 
@@ -67,6 +67,12 @@ class StoreCustomerRequest extends FormRequest
 
             'device_token' => ['nullable', 'string', 'max:255'],
             'device_id'    => ['nullable', 'string', 'max:255'],
+
+            // Arbitrary custom fields the frontend lets a user add on the fly: each entry is
+            // a label/value pair, with no fixed schema on our side.
+            'metadata'          => ['sometimes', 'nullable', 'array'],
+            'metadata.*.label'  => ['required_with:metadata', 'string', 'max:255'],
+            'metadata.*.value'  => ['nullable', 'string', 'max:1000'],
 
             'profile_picture' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'utility_bill'    => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],

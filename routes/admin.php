@@ -24,11 +24,12 @@ use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\StatusController;
 use App\Http\Controllers\Admin\TransactionController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\UserJourneyController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->controller(AuthController::class)->group(function () {
-    Route::post('login', 'login');
-    Route::post('2fa/verify', 'verifyTwoFactor');
+    Route::post('login', 'login')->middleware('throttle:login');
+    Route::post('2fa/verify', 'verifyTwoFactor')->middleware('throttle:login');
 });
 
 Route::middleware(['user'])->group(function () {
@@ -80,9 +81,10 @@ Route::middleware(['user'])->group(function () {
         Route::delete('{id}', 'destroy')->middleware('permission:delete_permissions');
     });
 
+    // No POST/store route — currencies are a fixed, curated list seeded by
+    // CurrencySeeder. Only rate/status/etc. updates on existing rows are allowed.
     Route::prefix('currencies')->controller(CurrencyController::class)->group(function () {
         Route::get('/', 'index')->middleware('permission:view_currencies');
-        Route::post('/', 'store')->middleware('permission:create_currencies');
         Route::get('{id}', 'show')->middleware('permission:view_currencies');
         Route::put('{id}', 'update')->middleware('permission:update_currencies');
         Route::delete('{id}', 'destroy')->middleware('permission:delete_currencies');
@@ -209,6 +211,9 @@ Route::middleware(['user'])->group(function () {
         Route::get('/', 'index')->middleware('permission:view_postings');
         Route::post('/', 'store')->middleware('permission:create_postings');
         Route::post('bulk-approve', 'bulkApprove')->middleware('permission:approve_postings');
+        Route::get('export/csv', 'exportCsvFile')->middleware('permission:view_postings');
+        Route::get('export/excel', 'exportExcelFile')->middleware('permission:view_postings');
+        Route::get('export/pdf', 'exportPdfFile')->middleware('permission:view_postings');
         Route::get('{id}', 'show')->middleware('permission:view_postings');
         Route::post('{id}/approve', 'approve')->middleware('permission:approve_postings');
         Route::post('{id}/reject', 'reject')->middleware('permission:approve_postings');
@@ -231,5 +236,11 @@ Route::middleware(['user'])->group(function () {
     Route::prefix('auth')->controller(AuthController::class)->group(function () {
         Route::get('me', 'me');
         Route::post('logout', 'logout');
+        Route::post('session-timeout', 'sessionTimeout');
+    });
+
+    Route::prefix('user-journeys')->controller(UserJourneyController::class)->group(function () {
+        Route::get('/', 'index')->middleware('permission:view_user_journeys');
+        Route::get('{sessionId}', 'show')->middleware('permission:view_user_journeys');
     });
 });

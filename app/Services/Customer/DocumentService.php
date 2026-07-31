@@ -6,6 +6,7 @@ namespace App\Services\Customer;
 
 use App\Models\Customer;
 use App\Models\Document;
+use App\Models\User;
 use App\Services\Audit\AuditService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
@@ -89,5 +90,37 @@ class DocumentService
         );
 
         return $document;
+    }
+
+    // Bulk-approves every still-pending document for a customer — used when the
+    // customer itself is approved, so nothing is left stuck at "pending" once
+    // the customer is active. Reviewers can still approve/reject documents
+    // individually before that point via update().
+    public function approveAllPending(Customer $customer, ?User $actor = null): int
+    {
+        $actor ??= Auth::guard('user')->user();
+
+        $pending = $customer->documents()->where('status', 'pending')->get();
+
+        if ($pending->isEmpty()) {
+            return 0;
+        }
+
+        $customer->documents()->where('status', 'pending')->update([
+            'status'      => 'approved',
+            'approved_by' => $actor?->id,
+            'approved_at' => now(),
+        ]);
+
+        $this->audit->log(
+            action: 'documents_approved',
+            module: 'customers',
+            auditable: $customer,
+            before: ['types' => $pending->pluck('type')->values()->all(), 'status' => 'pending'],
+            after: ['status' => 'approved'],
+            description: "{$pending->count()} document(s) were auto-approved for customer '{$customer->cif_number}' by '{$actor?->username}'.",
+        );
+
+        return $pending->count();
     }
 }

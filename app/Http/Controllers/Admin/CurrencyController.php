@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Admin\Currency\StoreCurrencyRequest;
 use App\Http\Requests\Admin\Currency\UpdateCurrencyRequest;
 use App\Http\Requests\Admin\Currency\UpdateCurrencyStatusRequest;
 use App\Http\Resources\Admin\Currency\CurrencyResource;
+use App\Models\Currency;
 use App\Services\Currency\CurrencyService;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -26,11 +26,22 @@ class CurrencyController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $currencies = $this->currencies->list($request->integer('per_page', 15));
+        $currencies = $this->currencies->list($request->integer('per_page', 50));
 
         return $this->success(
             message: 'Currencies retrieved successfully.',
             data: CurrencyResource::collection($currencies),
+            meta: [
+                // Counted across every currency, not just the current page — the
+                // page-only counts were what made "Active Currencies" look wrong
+                // on the frontend when only the first page's rows were tallied.
+                'statistics' => [
+                    'total_currencies' => Currency::query()->count(),
+                    'total_active'     => Currency::query()->where('status', 'active')->count(),
+                    'total_inactive'   => Currency::query()->where('status', 'inactive')->count(),
+                    'base_currency'    => Currency::query()->where('is_base_currency', true)->first(['code', 'name']),
+                ],
+            ],
         );
     }
 
@@ -42,35 +53,6 @@ class CurrencyController extends Controller
             message: 'Currency retrieved successfully.',
             data: new CurrencyResource($currency),
         );
-    }
-
-    public function store(StoreCurrencyRequest $request): JsonResponse
-    {
-        try {
-            $currency = $this->currencies->create($request->validated());
-
-            return $this->success(
-                message: 'Currency created successfully.',
-                data: new CurrencyResource($currency),
-                responseCode: '000',
-                statusCode: 201,
-            );
-        } catch (ValidationException $e) {
-            return $this->error(
-                message: $e->getMessage(),
-                responseCode: '101',
-                statusCode: 422,
-                errors: $e->errors(),
-            );
-        } catch (\Throwable $e) {
-            report($e);
-
-            return $this->error(
-                message: 'We are unable to process your request please try again.',
-                responseCode: '500',
-                statusCode: 500,
-            );
-        }
     }
 
     public function update(UpdateCurrencyRequest $request, int $id): JsonResponse

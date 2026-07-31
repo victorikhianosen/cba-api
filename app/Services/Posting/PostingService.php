@@ -15,11 +15,13 @@ use App\Services\Audit\AuditService;
 use App\Services\GeneralLedger\GeneralLedgerPostingService;
 use App\Support\ReferenceGenerator;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\LazyCollection;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -32,9 +34,58 @@ class PostingService
         private AuditService $audit,
     ) {}
 
-    public function list(int $perPage = 15): LengthAwarePaginator
+    public function list(int $perPage = 15, ?string $from = null, ?string $to = null, ?string $search = null, ?string $status = null, ?string $type = null): LengthAwarePaginator
     {
-        return Posting::query()->latest()->paginate($perPage)->withQueryString();
+        return $this->filtered($from, $to, $search, $status, $type)
+            ->latest()
+            ->paginate($perPage)
+            ->withQueryString();
+    }
+
+    // A cursor, not a Collection — never loads more than one row into memory at a time,
+    // so exporting stays flat regardless of how many postings match the filter.
+    public function cursorForExport(?string $from = null, ?string $to = null, ?string $search = null, ?string $status = null, ?string $type = null): LazyCollection
+    {
+        return $this->filtered($from, $to, $search, $status, $type)
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->cursor();
+    }
+
+    public function countForFilter(?string $from = null, ?string $to = null, ?string $search = null, ?string $status = null, ?string $type = null): int
+    {
+        return $this->filtered($from, $to, $search, $status, $type)->count();
+    }
+
+    private function filtered(?string $from, ?string $to, ?string $search = null, ?string $status = null, ?string $type = null): Builder
+    {
+        return Posting::query()
+            ->when($from, fn ($query, $from) => $query->whereDate('created_at', '>=', $from))
+            ->when($to, fn ($query, $to) => $query->whereDate('created_at', '<=', $to))
+            ->when($status, fn ($query, $status) => $query->where('status', $status))
+            ->when($type, function ($query, $type) {
+                $map = [
+                    'gl_to_gl'              => ['general_ledger', 'general_ledger'],
+                    'customer_to_gl'        => ['account', 'general_ledger'],
+                    'gl_to_customer'        => ['general_ledger', 'account'],
+                    'customer_to_customer'  => ['account', 'account'],
+                ];
+
+                if (! isset($map[$type])) {
+                    return;
+                }
+
+                [$sourceType, $destinationType] = $map[$type];
+
+                $query->where('source_type', $sourceType)->where('destination_type', $destinationType);
+            })
+            ->when($search, function ($query, $search) {
+                $query->where(function ($query) use ($search) {
+                    $query->where('reference', 'like', "%{$search}%")
+                        ->orWhere('transaction_reference', 'like', "%{$search}%")
+                        ->orWhere('remarks', 'like', "%{$search}%");
+                });
+            });
     }
 
     public function find(int $id): Posting

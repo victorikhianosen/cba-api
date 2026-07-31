@@ -17,7 +17,7 @@ class RolePermissionSeeder extends Seeder
         'view_permissions', 'create_permissions', 'update_permissions', 'delete_permissions',
         'view_branches', 'create_branches', 'update_branches', 'delete_branches',
         'view_banks', 'create_banks', 'update_banks', 'delete_banks',
-        'view_currencies', 'create_currencies', 'update_currencies', 'delete_currencies',
+        'view_currencies', 'update_currencies', 'delete_currencies',
         'view_customers', 'create_customers', 'update_customers', 'delete_customers',
         'view_accounts', 'create_accounts', 'update_accounts',
         'view_account_officers', 'create_account_officers', 'update_account_officers', 'delete_account_officers',
@@ -28,6 +28,7 @@ class RolePermissionSeeder extends Seeder
         'view_loan_products', 'create_loan_products', 'update_loan_products', 'delete_loan_products', 'approve_loan_products',
         'view_investment_products', 'create_investment_products', 'update_investment_products', 'delete_investment_products', 'approve_investment_products',
         'view_audit_trails',
+        'view_user_journeys',
         'view_communications', 'create_communications',
     ];
 

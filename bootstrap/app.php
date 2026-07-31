@@ -3,6 +3,8 @@
 use App\Http\Middleware\CheckPermissionMiddleware;
 use App\Http\Middleware\CustomerMiddleware;
 use App\Http\Middleware\GlobalLogger;
+use App\Http\Middleware\JourneyLogger;
+use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\UserMiddleware;
 
 use Illuminate\Foundation\Application;
@@ -24,6 +26,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
 
         $middleware->append(GlobalLogger::class);
+        $middleware->append(SecurityHeaders::class);
+        $middleware->append(JourneyLogger::class);
 
         $middleware->alias([
             'permission' => CheckPermissionMiddleware::class,

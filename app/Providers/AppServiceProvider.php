@@ -10,9 +10,12 @@ use App\Models\GeneralLedger;
 use App\Models\InvestmentProduct;
 use App\Models\LoanProduct;
 use App\Models\User;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -38,5 +41,14 @@ class AppServiceProvider extends ServiceProvider
         ]);
 
         Gate::before(fn (User $user) => $user->hasRole(['admin', 'super_admin']) ? true : null);
+
+        RateLimiter::for('login', function ($request) {
+            $key = Str::lower($request->input('email', $request->input('username', ''))) . '|' . $request->ip();
+
+            return [
+                Limit::perMinute(5)->by($key),
+                Limit::perMinute(20)->by($request->ip()),
+            ];
+        });
     }
 }

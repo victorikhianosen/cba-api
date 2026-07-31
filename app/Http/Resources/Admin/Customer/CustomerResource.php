@@ -72,6 +72,9 @@ class CustomerResource extends JsonResource
                 'device_token' => $this->device_token,
                 'device_id'    => $this->device_id,
 
+                // Arbitrary custom fields captured at onboarding: [{"key", "label", "value"}, ...].
+                'metadata' => $this->metadata,
+
                 'approval' => [
                     'approved_by' => $this->approved_by,
                     'approver'    => $this->whenLoaded('approvedBy', fn () => $this->userSummary($this->approvedBy)),

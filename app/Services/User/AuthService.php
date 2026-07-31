@@ -6,6 +6,7 @@ namespace App\Services\User;
 
 use App\Models\User;
 use App\Services\Audit\AuditService;
+use App\Services\Journey\JourneyService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -23,6 +24,7 @@ class AuthService
     public function __construct(
         private AuditService $audit,
         private Google2FA $google2fa,
+        private JourneyService $journeys,
     ) {}
 
     // Hands back a two-factor challenge instead of an access token — new users get a QR code to scan, returning users just get asked for the code.
@@ -127,7 +129,7 @@ class AuthService
             $user->forceFill(['enable_2fa' => true])->save();
         }
 
-        $token = $user->createToken('api-token')->plainTextToken;
+        $newToken = $user->createToken('api-token');
 
         $this->audit->log(
             action: 'login',
@@ -138,22 +140,37 @@ class AuthService
                 : "User '{$user->username}' ({$user->code}) logged in successfully.",
         );
 
+        // The token's own id is the session identifier a journey timeline groups
+        // on — one login (token issued) through one logout/timeout (token revoked).
+        $this->journeys->recordLogin($user, (string) $newToken->accessToken->getKey());
+
         return [
             'user'  => $user->load(['roles', 'permissions']),
-            'token' => $token,
+            'token' => $newToken->plainTextToken,
         ];
     }
 
-    public function logout(User $user): void
+    // $eventType distinguishes a manual logout from an idle-session timeout — the
+    // frontend calls this same flow either way, just through a different endpoint,
+    // since both revoke the current token identically.
+    public function logout(User $user, string $eventType = 'logout'): void
     {
+        $sessionId = (string) $user->currentAccessToken()?->getKey();
+
         $user->currentAccessToken()->delete();
 
         $this->audit->log(
-            action: 'logout',
+            action: $eventType === 'session_timeout' ? 'session_timeout' : 'logout',
             module: 'auth',
             auditable: $user,
-            description: "User '{$user->username}' ({$user->code}) logged out.",
+            description: $eventType === 'session_timeout'
+                ? "User '{$user->username}' ({$user->code}) was logged out after the session timed out."
+                : "User '{$user->username}' ({$user->code}) logged out.",
         );
+
+        if ($sessionId !== '') {
+            $this->journeys->recordLogout($user, $sessionId, $eventType);
+        }
     }
 
     // Random opaque token backed by a cache entry (not a self-contained encrypted payload) so it
