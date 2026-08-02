@@ -32,6 +32,37 @@ class AccountController extends Controller
         );
     }
 
+    // Resolves an account by its exact account number — used by the "book an investment
+    // straight from the account number" flow, which needs the account name/balance/currency
+    // and owning customer without a separate customer-search step.
+    public function lookup(Request $request): JsonResponse
+    {
+        $accountNumber = trim((string) $request->query('account_number'));
+
+        if ($accountNumber === '') {
+            return $this->error(
+                message: 'The account_number query parameter is required.',
+                responseCode: '101',
+                statusCode: 422,
+            );
+        }
+
+        $account = $this->accounts->findByAccountNumber($accountNumber);
+
+        if (! $account) {
+            return $this->error(
+                message: 'No account found with that account number.',
+                responseCode: '404',
+                statusCode: 404,
+            );
+        }
+
+        return $this->success(
+            message: 'Account retrieved successfully.',
+            data: new AccountResource($account),
+        );
+    }
+
     public function transactions(Request $request, int $id): JsonResponse
     {
         try {

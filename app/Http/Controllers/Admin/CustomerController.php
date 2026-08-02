@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Customer\ApproveCustomerRequest;
+use App\Http\Requests\Admin\Customer\BulkImportCustomersRequest;
 use App\Http\Requests\Admin\Customer\BulkUpdateCustomerRequest;
 use App\Http\Requests\Admin\Customer\CloseCustomerRequest;
 use App\Http\Requests\Admin\Customer\RejectCustomerRequest;
@@ -25,15 +26,18 @@ use App\Services\Account\AccountService;
 use App\Services\Customer\CustomerService;
 use App\Services\Customer\DocumentService;
 use App\Traits\ApiResponse;
+use App\Traits\Exportable;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\LazyCollection;
 use Illuminate\Validation\ValidationException;
 
 class CustomerController extends Controller
 {
     use ApiResponse;
+    use Exportable;
 
     public function __construct(
         private CustomerService $customers,
@@ -43,12 +47,114 @@ class CustomerController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $customers = $this->customers->list($request->integer('per_page', 15));
+        $customers = $this->customers->list(
+            $request->integer('per_page', 15),
+            $request->string('search')->trim()->value() ?: null,
+            $request->string('status')->trim()->value() ?: null,
+        );
 
         return $this->success(
             message: 'Customers retrieved successfully.',
             data: CustomerListResource::collection($customers),
         );
+    }
+
+    public function exportCsvFile(Request $request)
+    {
+        $search = $request->string('search')->trim()->value() ?: null;
+        $status = $request->string('status')->trim()->value() ?: null;
+
+        $rows = $this->customers
+            ->cursorForExport($search, $status)
+            ->map(fn ($customer) => $this->exportRow($customer));
+
+        return $this->exportCsv('customers.csv', $rows);
+    }
+
+    public function exportExcelFile(Request $request)
+    {
+        $search = $request->string('search')->trim()->value() ?: null;
+        $status = $request->string('status')->trim()->value() ?: null;
+
+        $rows = $this->customers
+            ->cursorForExport($search, $status)
+            ->map(fn ($customer) => $this->exportRow($customer));
+
+        return $this->exportExcel('customers.xlsx', $rows);
+    }
+
+    // A single-row template — column headers plus one example row — so an admin knows
+    // exactly what each column means and what format is expected (dates, phone digits, etc.)
+    // before filling in real data.
+    public function bulkImportTemplate()
+    {
+        $rows = LazyCollection::make($this->customers->bulkImportTemplateRows());
+
+        return $this->exportExcel('customer_bulk_import_template.xlsx', $rows);
+    }
+
+    public function bulkImport(BulkImportCustomersRequest $request): JsonResponse
+    {
+        $result = $this->customers->bulkImport($request->file('file'));
+
+        return $this->success(
+            message: "{$result['created']} customer(s) created, {$result['failed']} failed.",
+            data: $result,
+        );
+    }
+
+    public function exportPdfFile(Request $request)
+    {
+        $search = $request->string('search')->trim()->value() ?: null;
+        $status = $request->string('status')->trim()->value() ?: null;
+
+        $total = $this->customers->countForFilter($search, $status);
+
+        if ($total > self::PDF_EXPORT_ROW_LIMIT) {
+            return $this->error(
+                message: "This filter matches {$total} customers — PDF export is limited to " . self::PDF_EXPORT_ROW_LIMIT . '. Narrow your search or use CSV export instead.',
+                responseCode: '101',
+                statusCode: 422,
+            );
+        }
+
+        $rows = $this->customers
+            ->cursorForExport($search, $status)
+            ->map(fn ($customer) => [
+                $customer->cif_number,
+                trim("{$customer->first_name} {$customer->last_name}") ?: $customer->business_name,
+                $customer->customer_type,
+                $customer->phone,
+                $customer->email,
+                $customer->branch?->name,
+                strtoupper($customer->status),
+            ])
+            ->all();
+
+        return $this->exportPdf('exports.table', [
+            'title'   => 'Customers',
+            'headers' => ['CIF Number', 'Name', 'Type', 'Phone', 'Email', 'Branch', 'Status'],
+            'rows'    => $rows,
+        ], 'customers.pdf');
+    }
+
+    /** @return array<string, mixed> */
+    private function exportRow($customer): array
+    {
+        return [
+            'CIF Number'   => $customer->cif_number,
+            'Name'         => trim("{$customer->first_name} {$customer->last_name}") ?: $customer->business_name,
+            'Type'         => $customer->customer_type,
+            'Phone'        => $customer->phone,
+            'Email'        => $customer->email,
+            'BVN'          => $customer->bvn,
+            'Branch'       => $customer->branch?->name,
+            'Account Officer' => $customer->accountOfficer
+                ? trim("{$customer->accountOfficer->first_name} {$customer->accountOfficer->last_name}")
+                : null,
+            'Status'       => $customer->status,
+            'Created At'   => optional($customer->created_at)->toDateTimeString(),
+        ];
     }
 
     // Resolves a customer by CIF number to their id/name — used to confirm a

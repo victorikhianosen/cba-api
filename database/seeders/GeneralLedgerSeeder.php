@@ -64,6 +64,12 @@ class GeneralLedgerSeeder extends Seeder
         ['Investment Income From Fees', 'income', 'fee_income'],
         ['Investment Income From Penalties', 'income', 'penalty_income'],
         ['Investment Transfers Suspense', 'liability', 'suspense'],
+
+        // Investment product roles (InvestmentProductType) not covered by the roles above.
+        ['Investment Interest Payable', 'liability', 'payable'],
+        ['Investment Interest Paid', 'asset', 'cash'],
+        ['Investment Withholding Tax Payable', 'liability', 'tax'],
+        ['Investment Settlement Maturity', 'asset', 'cash'],
     ];
 
     // USD counterparts of the product-role GLs above, prefixed "USD " since GL names must be globally unique and a GL can only be mapped to one product/currency.
@@ -78,6 +84,13 @@ class GeneralLedgerSeeder extends Seeder
         ['USD Income From Interest', 'income', 'interest_income'],
         ['USD Losses Written Off', 'expense', 'suspense'],
         ['USD Escheat Liability', 'liability', 'payable'],
+
+        // Domiciliary account product roles (dedicated GLs, same as Current's split from Savings)
+        ['USD Domiciliary Account Control', 'liability', 'savings_control'],
+        ['USD Interest On Domiciliary Account', 'expense', 'interest_expense'],
+        ['USD Domiciliary Income From Fees', 'income', 'fee_income'],
+        ['USD Domiciliary Income From Penalties', 'income', 'penalty_income'],
+        ['USD Domiciliary Transfers Suspense', 'liability', 'suspense'],
 
         // Loan product roles (LoanProductFinancialAccountType)
         ['USD Loan Fund Source', 'asset', 'cash'],
@@ -95,6 +108,12 @@ class GeneralLedgerSeeder extends Seeder
         ['USD Investment Income From Fees', 'income', 'fee_income'],
         ['USD Investment Income From Penalties', 'income', 'penalty_income'],
         ['USD Investment Transfers Suspense', 'liability', 'suspense'],
+
+        // Investment product roles (InvestmentProductType) not covered by the roles above.
+        ['USD Investment Interest Payable', 'liability', 'payable'],
+        ['USD Investment Interest Paid', 'asset', 'cash'],
+        ['USD Investment Withholding Tax Payable', 'liability', 'tax'],
+        ['USD Investment Settlement Maturity', 'asset', 'cash'],
     ];
 
     // How many generic test GLs to generate per currency for ad hoc posting tests — cycled evenly across all 5 classifications.

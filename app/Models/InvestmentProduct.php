@@ -6,6 +6,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class InvestmentProduct extends Model
@@ -16,7 +17,9 @@ class InvestmentProduct extends Model
     {
         return [
             'interest_rate'                    => 'decimal:6',
-            'tenure'                           => 'integer',
+            'allowed_interest_posting_periods' => 'array',
+            'min_tenure_days'                  => 'integer',
+            'max_tenure_days'                  => 'integer',
             'min_deposit_amount'               => 'decimal:6',
             'max_deposit_amount'               => 'decimal:6',
             'auto_renew'                       => 'boolean',
@@ -25,6 +28,7 @@ class InvestmentProduct extends Model
             'allow_early_liquidation'          => 'boolean',
             'early_liquidation_lock_days'      => 'integer',
             'early_liquidation_penalty_rate'   => 'decimal:6',
+            'withholding_tax_rate'             => 'decimal:2',
             'is_default'                       => 'boolean',
             'approved_at'                      => 'datetime',
         ];
@@ -48,5 +52,10 @@ class InvestmentProduct extends Model
     public function generalLedgerMappings(): MorphMany
     {
         return $this->morphMany(ProductToGlAccountMapping::class, 'product');
+    }
+
+    public function investments(): HasMany
+    {
+        return $this->hasMany(Investment::class);
     }
 }

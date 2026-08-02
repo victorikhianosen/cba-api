@@ -9,7 +9,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
-// Read/list counterpart to JourneyService — same split as AuditService/AuditTrailService.
+// Read/list counterpart to JourneyService.
 class UserJourneyService
 {
     // One row per session (login → logout/timeout), summarized from the raw event

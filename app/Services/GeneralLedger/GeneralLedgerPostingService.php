@@ -32,9 +32,23 @@ class GeneralLedgerPostingService
         return $this->post($generalLedger, DebitCredit::CREDIT, $leg);
     }
 
-    // A GL used as a posting's source can never move out more than it currently holds, regardless of classification — the balance is a hard ceiling, not just an accounting-direction nicety.
+    // Classifications with no real store of value to run out of — a P&L recognition entry
+    // (an expense being recorded, an income line being reversed) isn't moving funds that
+    // had to exist beforehand, so it's exempt from the balance ceiling below.
+    private const UNCONSTRAINED_CLASSIFICATIONS = [
+        GeneralLedgerClassification::EXPENSE,
+        GeneralLedgerClassification::INCOME,
+    ];
+
+    // A GL used as a posting's source can never move out more than it currently holds — the
+    // balance is a hard ceiling for real balance-sheet accounts (asset/liability/equity).
+    // Expense/income GLs are exempt (see UNCONSTRAINED_CLASSIFICATIONS above).
     public function hasSufficientBalance(GeneralLedger $generalLedger, string $amount): bool
     {
+        if (in_array(GeneralLedgerClassification::from($generalLedger->classification), self::UNCONSTRAINED_CLASSIFICATIONS, true)) {
+            return true;
+        }
+
         return bccomp($amount, (string) $generalLedger->balance, 4) <= 0;
     }
 

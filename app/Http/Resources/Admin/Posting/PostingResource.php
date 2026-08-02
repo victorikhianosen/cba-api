@@ -85,11 +85,13 @@ class PostingResource extends JsonResource
 
         return match (true) {
             $model instanceof Account => [
-                'type'           => 'account',
-                'id'             => $model->id,
-                'account_number' => $model->account_number,
-                'account_name'   => $model->account_name,
-                'customer_id'    => $model->customer_id,
+                'type'              => 'account',
+                'id'                => $model->id,
+                'account_number'    => $model->account_number,
+                'account_name'      => $model->account_name,
+                'customer_id'       => $model->customer_id,
+                'account_balance'   => $model->account_balance,
+                'available_balance' => $model->available_balance,
             ],
             $model instanceof GeneralLedger => [
                 'type'    => 'general_ledger',

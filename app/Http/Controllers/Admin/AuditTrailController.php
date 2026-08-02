@@ -6,7 +6,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Admin\AuditTrail\AuditTrailResource;
-use App\Services\Audit\AuditTrailService;
+use App\Services\Audit\AuditService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,7 +16,7 @@ class AuditTrailController extends Controller
     use ApiResponse;
 
     public function __construct(
-        private AuditTrailService $auditTrails,
+        private AuditService $auditTrails,
     ) {}
 
     public function index(Request $request): JsonResponse

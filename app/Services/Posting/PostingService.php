@@ -113,7 +113,7 @@ class PostingService
 
         $posting = DB::transaction(fn() => Posting::create([
             ...$data,
-            'reference'             => ReferenceGenerator::generate('PST'),
+            'reference'             => ReferenceGenerator::generate($this->referencePrefixFor($data['module'] ?? null)),
             'transaction_reference' => ReferenceGenerator::generate('TXN'),
             'total_amount'          => bcadd(bcadd(bcadd($amount, $fee, 4), $vat, 4), $tax, 4),
             'status'                => PostingStatus::PENDING->value,
@@ -162,69 +162,7 @@ class PostingService
                 ]);
             }
 
-            [$source, $destination] = $this->verify(
-                $posting->source_type,
-                $posting->source_id,
-                $posting->destination_type,
-                $posting->destination_id,
-                (string) $posting->amount,
-            );
-
-            $financialTransaction = $this->recordFinancialTransaction($posting, $source, $destination, $actor);
-
-            $baseLeg = [
-                'financial_transaction_id' => $financialTransaction->id,
-                'entry_group_id'           => (string) Str::uuid(),
-                'transaction_reference'    => $posting->transaction_reference,
-                'amount'                   => $posting->amount,
-                'currency_id'              => $posting->currency_id,
-                'narration'                => $posting->remarks,
-                'created_by'               => $actor?->id,
-                'module'                   => $posting->module,
-                'transaction_type'         => $posting->transaction_type,
-                'transaction_subtype'      => $posting->transaction_subtype,
-                'business_service'         => $posting->business_service,
-                'channel'                  => $posting->channel,
-            ];
-
-            // Each leg's "counterparty" is the OTHER party in the posting — denormalized
-            // onto the transaction row so "who sent/received this" never needs a join.
-            $sourceSnapshot      = $this->partySnapshot($source, $posting->source_type);
-            $destinationSnapshot = $this->partySnapshot($destination, $posting->destination_type);
-
-            $debitLeg = [
-                ...$baseLeg,
-                'counterparty_type'           => $destinationSnapshot['type'],
-                'counterparty_id'             => $destinationSnapshot['id'],
-                'counterparty_name'           => $destinationSnapshot['name'],
-                'counterparty_account_number' => $destinationSnapshot['code'],
-            ];
-
-            $creditLeg = [
-                ...$baseLeg,
-                'counterparty_type'           => $sourceSnapshot['type'],
-                'counterparty_id'             => $sourceSnapshot['id'],
-                'counterparty_name'           => $sourceSnapshot['name'],
-                'counterparty_account_number' => $sourceSnapshot['code'],
-            ];
-
-            $posting->source_type === 'account'
-                ? $this->accountLedger->debit($source, $debitLeg)
-                : $this->glLedger->debit($source, $debitLeg);
-
-            $posting->destination_type === 'account'
-                ? $this->accountLedger->credit($destination, $creditLeg)
-                : $this->glLedger->credit($destination, $creditLeg);
-
-            $posting->update([
-                'status'      => PostingStatus::APPROVED->value,
-                'reviewed_by' => $actor?->id,
-                'reviewed_at' => now(),
-                'approved_by' => $actor?->id,
-                'approved_at' => now(),
-            ]);
-
-            return $financialTransaction->load(['journalEntries', 'transactions']);
+            return $this->execute($posting, $actor);
         });
 
         $this->audit->log(
@@ -236,6 +174,122 @@ class PostingService
         );
 
         return $financialTransaction;
+    }
+
+    // For system-authorized flows where the "approval" already happened one level up
+    // (e.g. approving an investment IS the authorization to move the customer's money
+    // into it) — there is no separate human left to be the checker, so creating the
+    // posting and executing it happen atomically here instead of the normal
+    // create()-then-someone-else-approve() two-step. Still goes through the exact
+    // same verify()/execute() path as a manually-approved posting — same balance
+    // checks, same ledger legs, same financial_transaction/audit trail — it just
+    // skips the "pending, waiting for a second admin" state entirely.
+    public function createAndApprove(array $data): FinancialTransaction
+    {
+        $data['idempotency_key'] = (string) Str::uuid();
+
+        [$source] = $this->verify($data['source_type'], (int) $data['source_id'], $data['destination_type'], (int) $data['destination_id'], (string) $data['amount']);
+
+        $data['currency_id'] = (int) $source->currency_id;
+
+        $actor  = Auth::guard('user')->user();
+        $amount = (string) $data['amount'];
+        $fee    = (string) ($data['fee'] ?? 0);
+        $vat    = (string) ($data['vat'] ?? 0);
+        $tax    = (string) ($data['tax'] ?? 0);
+
+        $financialTransaction = DB::transaction(function () use ($data, $amount, $fee, $vat, $tax, $actor) {
+            $posting = Posting::create([
+                ...$data,
+                'reference'             => ReferenceGenerator::generate($this->referencePrefixFor($data['module'] ?? null)),
+                'transaction_reference' => ReferenceGenerator::generate('TXN'),
+                'total_amount'          => bcadd(bcadd(bcadd($amount, $fee, 4), $vat, 4), $tax, 4),
+                'status'                => PostingStatus::PENDING->value,
+                'created_by'            => $actor?->id,
+            ])->refresh();
+
+            return $this->execute($posting, $actor);
+        });
+
+        $this->audit->log(
+            action: 'approved',
+            module: 'postings',
+            auditable: $financialTransaction,
+            after: ['status' => PostingStatus::APPROVED->value, 'financial_transaction_id' => $financialTransaction->id],
+            description: "Posting '{$financialTransaction->posting?->reference}' was created and immediately approved by '{$actor?->username}' (system-authorized).",
+        );
+
+        return $financialTransaction;
+    }
+
+    // Shared debit/credit/record core for a pending, already-locked posting. Callers
+    // (approve(), createAndApprove()) are responsible for the pending/lock checks that
+    // make sense for their own flow before calling this.
+    private function execute(Posting $posting, ?User $actor): FinancialTransaction
+    {
+        [$source, $destination] = $this->verify(
+            $posting->source_type,
+            $posting->source_id,
+            $posting->destination_type,
+            $posting->destination_id,
+            (string) $posting->amount,
+        );
+
+        $financialTransaction = $this->recordFinancialTransaction($posting, $source, $destination, $actor);
+
+        $baseLeg = [
+            'financial_transaction_id' => $financialTransaction->id,
+            'entry_group_id'           => (string) Str::uuid(),
+            'transaction_reference'    => $posting->transaction_reference,
+            'amount'                   => $posting->amount,
+            'currency_id'              => $posting->currency_id,
+            'narration'                => $posting->remarks,
+            'created_by'               => $actor?->id,
+            'module'                   => $posting->module,
+            'transaction_type'         => $posting->transaction_type,
+            'transaction_subtype'      => $posting->transaction_subtype,
+            'business_service'         => $posting->business_service,
+            'channel'                  => $posting->channel,
+        ];
+
+        // Each leg's "counterparty" is the OTHER party in the posting — denormalized
+        // onto the transaction row so "who sent/received this" never needs a join.
+        $sourceSnapshot      = $this->partySnapshot($source, $posting->source_type);
+        $destinationSnapshot = $this->partySnapshot($destination, $posting->destination_type);
+
+        $debitLeg = [
+            ...$baseLeg,
+            'counterparty_type'           => $destinationSnapshot['type'],
+            'counterparty_id'             => $destinationSnapshot['id'],
+            'counterparty_name'           => $destinationSnapshot['name'],
+            'counterparty_account_number' => $destinationSnapshot['code'],
+        ];
+
+        $creditLeg = [
+            ...$baseLeg,
+            'counterparty_type'           => $sourceSnapshot['type'],
+            'counterparty_id'             => $sourceSnapshot['id'],
+            'counterparty_name'           => $sourceSnapshot['name'],
+            'counterparty_account_number' => $sourceSnapshot['code'],
+        ];
+
+        $posting->source_type === 'account'
+            ? $this->accountLedger->debit($source, $debitLeg)
+            : $this->glLedger->debit($source, $debitLeg);
+
+        $posting->destination_type === 'account'
+            ? $this->accountLedger->credit($destination, $creditLeg)
+            : $this->glLedger->credit($destination, $creditLeg);
+
+        $posting->update([
+            'status'      => PostingStatus::APPROVED->value,
+            'reviewed_by' => $actor?->id,
+            'reviewed_at' => now(),
+            'approved_by' => $actor?->id,
+            'approved_at' => now(),
+        ]);
+
+        return $financialTransaction->load(['journalEntries', 'transactions']);
     }
 
     // Approves each posting independently — a rejection-worthy failure on one (insufficient
@@ -309,6 +363,19 @@ class PostingService
     }
 
     // Resolves source/destination, locks both rows (fixed [type, id] order to avoid deadlocks), checks currency match and that the source can cover the debit. Currency is never taken from a caller-supplied value — it's derived from the parties themselves, so a Dollar-to-Naira posting is structurally impossible, not just rejected after the fact.
+    // Lets a posting's own reference identify which module it came from at a glance
+    // (IVT2608... vs PST2608...) instead of every posting looking generic regardless of
+    // origin — investments-module postings (funding, top-up) get "IVT", everything else
+    // keeps the existing generic "PST" prefix.
+    private const MODULE_REFERENCE_PREFIXES = [
+        'investments' => 'IVT',
+    ];
+
+    private function referencePrefixFor(?string $module): string
+    {
+        return self::MODULE_REFERENCE_PREFIXES[$module] ?? 'PST';
+    }
+
     private function verify(string $sourceType, int $sourceId, string $destinationType, int $destinationId, string $amount): array
     {
         if ($sourceType === $destinationType && $sourceId === $destinationId) {

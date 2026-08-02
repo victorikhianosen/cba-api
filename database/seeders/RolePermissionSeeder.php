@@ -27,6 +27,7 @@ class RolePermissionSeeder extends Seeder
         'view_account_products', 'create_account_products', 'update_account_products', 'delete_account_products', 'approve_account_products',
         'view_loan_products', 'create_loan_products', 'update_loan_products', 'delete_loan_products', 'approve_loan_products',
         'view_investment_products', 'create_investment_products', 'update_investment_products', 'delete_investment_products', 'approve_investment_products',
+        'view_investments', 'create_investments', 'approve_investments',
         'view_audit_trails',
         'view_user_journeys',
         'view_communications', 'create_communications',

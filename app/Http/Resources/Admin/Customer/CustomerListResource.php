@@ -16,6 +16,11 @@ class CustomerListResource extends JsonResource
             'cif_number'         => $this->cif_number,
             'branch_id'          => $this->branch_id,
             'account_officer_id' => $this->account_officer_id,
+            'accounts'           => $this->whenLoaded('accounts', fn () => $this->accounts->map(fn ($account) => [
+                'id'             => $account->id,
+                'account_number' => $account->account_number,
+                'status'         => $account->status,
+            ])),
             'customer_type'      => $this->customer_type,
             'legal_form'         => $this->legal_form,
             'guardian_id'        => $this->guardian_id,

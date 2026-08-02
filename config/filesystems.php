@@ -17,6 +17,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Uploads Disk
+    |--------------------------------------------------------------------------
+    |
+    | The single disk every FileStorageService call uses for user-uploaded files
+    | (bank logos, profile pictures, customer documents, product icons, ...).
+    | Change this (and/or the disk's own config below) to move all uploads to a
+    | different bucket/provider without touching any upload call site.
+    |
+    */
+
+    'uploads_disk' => env('UPLOADS_DISK', 's3'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Filesystem Disks
     |--------------------------------------------------------------------------
     |

@@ -45,6 +45,13 @@ class AccountService
         return Account::with(['customer', 'accountProduct', 'currency', 'accountTier'])->findOrFail($id);
     }
 
+    public function findByAccountNumber(string $accountNumber): ?Account
+    {
+        return Account::with(['customer', 'accountProduct', 'currency'])
+            ->where('account_number', $accountNumber)
+            ->first();
+    }
+
     // $search matches the account number/name directly, or the owning customer's cif number/name.
     public function list(int $perPage = 15, ?string $search = null): LengthAwarePaginator
     {

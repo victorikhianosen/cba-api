@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Resources\Admin\User;
 
+use App\Services\Storage\FileStorageService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Storage;
 
 class UserResource extends JsonResource
 {
@@ -22,7 +22,7 @@ class UserResource extends JsonResource
             'staff_code'    => $this->staff_code,
             'email'         => $this->email,
             'gender'        => $this->gender,
-            'profile_picture' => $this->profile_picture ? Storage::disk('s3')->url($this->profile_picture) : null,
+            'profile_picture' => app(FileStorageService::class)->url($this->profile_picture),
             'phone'         => $this->phone,
             'address'       => $this->address,
             'city'          => $this->city,

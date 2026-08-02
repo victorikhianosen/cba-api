@@ -30,13 +30,14 @@ class UpdateInvestmentProductRequest extends FormRequest
         return [
             'name'          => ['nullable', 'string', 'max:255', Rule::unique('investment_products', 'name')->ignore($investmentProductId)],
             'short_name'    => ['nullable', 'string', 'max:45'],
-            'icon'          => ['nullable', 'string', 'max:255'],
             'description'   => ['nullable', 'string'],
-            'interest_rate' => ['nullable', 'numeric', 'min:0'],
-            'interest_posting_period' => ['nullable', Rule::in(['upfront', 'daily', 'weekly', 'monthly', 'quarterly', 'bi_annually', 'annually', 'bullet'])],
+            'interest_rate' => ['nullable', 'numeric', 'min:0', 'max:100', 'regex:/^\d+(\.\d{1,2})?$/'],
 
-            'tenure'                => ['nullable', 'integer', 'min:1'],
-            'tenure_unit'           => ['nullable', Rule::in(['days', 'weeks', 'months', 'years'])],
+            'allowed_interest_posting_periods'   => ['nullable', 'array'],
+            'allowed_interest_posting_periods.*' => [Rule::in(['upfront', 'daily', 'weekly', 'monthly', 'quarterly', 'bi_annually', 'annually', 'bullet'])],
+
+            'min_tenure_days'       => ['nullable', 'integer', 'min:1', 'max:365'],
+            'max_tenure_days'       => ['nullable', 'integer', 'min:1', 'max:365', 'gte:min_tenure_days'],
             'min_deposit_amount'    => ['nullable', 'numeric', 'min:0'],
             'max_deposit_amount'    => ['nullable', 'numeric', 'min:0', 'gte:min_deposit_amount'],
 
@@ -45,7 +46,8 @@ class UpdateInvestmentProductRequest extends FormRequest
             'allow_partial_withdrawal'      => ['nullable', 'boolean'],
             'allow_early_liquidation'       => ['nullable', 'boolean'],
             'early_liquidation_lock_days'   => ['nullable', 'integer', 'min:0'],
-            'early_liquidation_penalty_rate' => ['nullable', 'numeric', 'min:0'],
+            'early_liquidation_penalty_rate' => ['nullable', 'numeric', 'min:0', 'max:100', 'regex:/^\d+(\.\d{1,2})?$/'],
+            'withholding_tax_rate'          => ['nullable', 'numeric', 'min:0', 'max:100', 'regex:/^\d+(\.\d{1,2})?$/'],
             'is_default'                    => ['nullable', 'boolean'],
         ];
     }

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Resources\Admin\Customer;
 
+use App\Services\Storage\FileStorageService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Storage;
 
 class SignatoryResource extends JsonResource
 {
@@ -24,9 +24,9 @@ class SignatoryResource extends JsonResource
             'phone'               => $this->phone,
             'email'               => $this->email,
             'signature'           => $this->signature,
-            'signature_url'       => $this->signature ? Storage::disk('s3')->url($this->signature) : null,
+            'signature_url'       => app(FileStorageService::class)->url($this->signature),
             'passport_photo'      => $this->passport_photo,
-            'passport_photo_url'  => $this->passport_photo ? Storage::disk('s3')->url($this->passport_photo) : null,
+            'passport_photo_url'  => app(FileStorageService::class)->url($this->passport_photo),
             'gender'             => $this->gender,
             'dob'                => $this->dob,
             'bvn'                => $this->bvn,

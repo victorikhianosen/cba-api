@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\InvestmentProduct\StoreInvestmentProductRequest;
 use App\Http\Requests\Admin\InvestmentProduct\UpdateInvestmentProductRequest;
 use App\Http\Requests\Admin\InvestmentProduct\UpdateInvestmentProductStatusRequest;
+use App\Http\Requests\Admin\InvestmentProduct\UploadInvestmentProductIconRequest;
 use App\Http\Resources\Admin\InvestmentProduct\InvestmentProductResource;
 use App\Services\InvestmentProduct\InvestmentProductService;
 use App\Traits\ApiResponse;
@@ -46,7 +47,7 @@ class InvestmentProductController extends Controller
     public function store(StoreInvestmentProductRequest $request): JsonResponse
     {
         try {
-            $investmentProduct = $this->investmentProducts->create($request->toInvestmentProductData());
+            $investmentProduct = $this->investmentProducts->create($request->toInvestmentProductData(), $request->file('icon'));
 
             return $this->success(
                 message: 'Investment product created successfully.',
@@ -89,6 +90,28 @@ class InvestmentProductController extends Controller
                 responseCode: '101',
                 statusCode: 422,
                 errors: $e->errors(),
+            );
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->error(
+                message: 'We are unable to process your request please try again.',
+                responseCode: '500',
+                statusCode: 500,
+            );
+        }
+    }
+
+    public function uploadIcon(UploadInvestmentProductIconRequest $request, int $id): JsonResponse
+    {
+        $investmentProduct = $this->investmentProducts->find($id);
+
+        try {
+            $investmentProduct = $this->investmentProducts->uploadIcon($investmentProduct, $request->file('icon'));
+
+            return $this->success(
+                message: 'Investment product icon updated successfully.',
+                data: new InvestmentProductResource($investmentProduct),
             );
         } catch (\Throwable $e) {
             report($e);

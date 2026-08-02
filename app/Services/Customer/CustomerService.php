@@ -4,18 +4,24 @@ declare(strict_types=1);
 
 namespace App\Services\Customer;
 
+use App\Enums\Customer\BusinessType;
 use App\Enums\Customer\CustomerType;
 use App\Models\AccountProduct;
 use App\Models\Customer;
 use App\Services\Account\AccountService;
 use App\Services\Audit\AuditService;
+use App\Services\Storage\FileStorageService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\LazyCollection;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Spatie\SimpleExcel\SimpleExcelReader;
 
 class CustomerService
 {
@@ -28,11 +34,46 @@ class CustomerService
         private AuditService $audit,
         private AccountService $accounts,
         private DocumentService $documents,
+        private FileStorageService $files,
     ) {}
 
-    public function list(int $perPage = 15): LengthAwarePaginator
+    public function list(int $perPage = 15, ?string $search = null, ?string $status = null): LengthAwarePaginator
     {
-        return Customer::query()->latest()->paginate($perPage)->withQueryString();
+        return $this->filtered($search, $status)
+            ->with('accounts:id,customer_id,account_number,status')
+            ->latest()
+            ->paginate($perPage)
+            ->withQueryString();
+    }
+
+    public function cursorForExport(?string $search = null, ?string $status = null): LazyCollection
+    {
+        return $this->filtered($search, $status)
+            ->with(['branch', 'accountOfficer'])
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->cursor();
+    }
+
+    public function countForFilter(?string $search = null, ?string $status = null): int
+    {
+        return $this->filtered($search, $status)->count();
+    }
+
+    private function filtered(?string $search = null, ?string $status = null): Builder
+    {
+        return Customer::query()
+            ->when($status, fn ($query, $status) => $query->where('status', $status))
+            ->when($search, function ($query, $search) {
+                $query->where(function ($query) use ($search) {
+                    $query->where('cif_number', 'like', "%{$search}%")
+                        ->orWhere('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%")
+                        ->orWhere('business_name', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%")
+                        ->orWhere('phone', 'like', "%{$search}%");
+                });
+            });
     }
 
     private const RELATIONS = ['branch', 'accountOfficer', 'documents', 'currentAddress', 'nextOfKin', 'business', 'directors', 'signatories', 'accounts.accountProduct', 'accounts.accountTier', 'createdBy', 'approvedBy'];
@@ -109,7 +150,7 @@ class CustomerService
                     $customer->documents()->create([
                         'title'       => Str::of($type)->replace('_', ' ')->title()->value(),
                         'type'        => $type,
-                        'path'        => $file->store("customer-documents/{$customer->id}", 's3'),
+                        'path'        => $this->files->upload($file, "customer-documents/{$customer->id}"),
                         'uploaded_by' => $actor?->id,
                         'status'      => 'pending',
                     ]);
@@ -133,7 +174,7 @@ class CustomerService
 
             foreach ($directors as $index => $director) {
                 if (($director['passport_photo'] ?? null) instanceof UploadedFile) {
-                    $director['passport_photo'] = $director['passport_photo']->store("director-photos/{$customer->id}", 's3');
+                    $director['passport_photo'] = $this->files->upload($director['passport_photo'], "director-photos/{$customer->id}");
                 }
 
                 $createdDirectors[$index] = $customer->directors()->create($director);
@@ -148,11 +189,11 @@ class CustomerService
                     : null;
 
                 if (($signatory['passport_photo'] ?? null) instanceof UploadedFile) {
-                    $signatory['passport_photo'] = $signatory['passport_photo']->store("signatory-photos/{$customer->id}", 's3');
+                    $signatory['passport_photo'] = $this->files->upload($signatory['passport_photo'], "signatory-photos/{$customer->id}");
                 }
 
                 if (($signatory['signature'] ?? null) instanceof UploadedFile) {
-                    $signatory['signature'] = $signatory['signature']->store("signatory-signatures/{$customer->id}", 's3');
+                    $signatory['signature'] = $this->files->upload($signatory['signature'], "signatory-signatures/{$customer->id}");
                 }
 
                 $customer->signatories()->create($signatory);
@@ -177,6 +218,292 @@ class CustomerService
         );
 
         return $customer;
+    }
+
+    // Column headers for the bulk-import template/upload — covers all 5 customer types on
+    // one flat row each. Business-like rows (business/government/corporate) carry a single
+    // primary signatory only — directors are optional even for corporate per
+    // StoreCustomerRequest's own rules ('sometimes', not required), so they're left out of
+    // the flat-row format entirely; a corporate customer needing multiple directors/
+    // signatories should still go through the normal onboarding form for that part.
+    public const BULK_IMPORT_COLUMNS = [
+        'customer_type',
+        'first_name', 'middle_name', 'last_name', 'phone', 'email', 'gender', 'dob',
+        'marital_status', 'occupation', 'bvn', 'nin_number',
+        'address', 'city', 'state', 'country',
+        'next_of_kin_first_name', 'next_of_kin_last_name', 'next_of_kin_relationship', 'next_of_kin_phone',
+        'guardian_cif',
+        'business_name', 'business_type', 'trading_name', 'registration_number',
+        'signatory_first_name', 'signatory_last_name', 'signatory_phone', 'signatory_position',
+    ];
+
+    /** @return array<int, array<string, mixed>> */
+    public function bulkImportTemplateRows(): array
+    {
+        $individual = [
+            'customer_type'            => 'individual',
+            'first_name'               => 'Jane',
+            'middle_name'              => '',
+            'last_name'                => 'Doe',
+            'phone'                    => '08012345678',
+            'email'                    => 'jane.doe@example.com',
+            'gender'                   => 'female',
+            'dob'                      => '1990-01-15',
+            'marital_status'           => 'single',
+            'occupation'               => 'Trader',
+            'bvn'                      => '12345678901',
+            'nin_number'               => '12345678901',
+            'address'                  => '12 Marina Street',
+            'city'                     => 'Lagos',
+            'state'                    => 'Lagos',
+            'country'                  => 'Nigeria',
+            'next_of_kin_first_name'   => 'John',
+            'next_of_kin_last_name'    => 'Doe',
+            'next_of_kin_relationship' => 'Spouse',
+            'next_of_kin_phone'        => '08098765432',
+            'guardian_cif'             => '',
+            'business_name'            => '',
+            'business_type'            => '',
+            'trading_name'             => '',
+            'registration_number'      => '',
+            'signatory_first_name'     => '',
+            'signatory_last_name'      => '',
+            'signatory_phone'          => '',
+            'signatory_position'       => '',
+        ];
+
+        $minor = array_merge($individual, [
+            'customer_type'          => 'minor',
+            'first_name'             => 'Baby',
+            'last_name'              => 'Doe',
+            'phone'                  => '08011112222',
+            'email'                  => '',
+            'dob'                    => '2015-06-01',
+            'bvn'                    => '',
+            'nin_number'             => '',
+            'guardian_cif'           => 'CIF-SEED-0001',
+            'next_of_kin_first_name' => '',
+            'next_of_kin_last_name'  => '',
+            'next_of_kin_phone'      => '',
+        ]);
+
+        $corporate = array_merge($individual, [
+            'customer_type'            => 'corporate',
+            'first_name'               => 'Ade',
+            'last_name'                => 'Balogun',
+            'phone'                    => '08033334444',
+            'next_of_kin_first_name'   => '',
+            'next_of_kin_last_name'    => '',
+            'next_of_kin_relationship' => '',
+            'next_of_kin_phone'        => '',
+            'business_name'            => 'Acme Traders Limited',
+            'business_type'            => 'limited_liability',
+            'trading_name'             => 'Acme Traders',
+            'registration_number'      => 'RC1234567',
+            'signatory_first_name'     => 'Ade',
+            'signatory_last_name'      => 'Balogun',
+            'signatory_phone'          => '08033334444',
+            'signatory_position'       => 'Managing Director',
+        ]);
+
+        return [$individual, $minor, $corporate];
+    }
+
+    /**
+     * Parses an uploaded spreadsheet and creates one customer per row (any of the 5
+     * customer types — see mapBulkImportRow()), isolating each row in its own try/catch
+     * (mirroring PostingService::bulkApprove()'s pattern) so a bad row (duplicate phone,
+     * missing name, whatever) never blocks or rolls back the rest of the batch.
+     *
+     * @return array{created: int, failed: int, errors: array<int, array{row: int, reason: string}>}
+     */
+    public function bulkImport(UploadedFile $file): array
+    {
+        $created = 0;
+        $errors  = [];
+
+        $rows = SimpleExcelReader::create($file->getRealPath(), $file->getClientOriginalExtension())
+            ->headersToSnakeCase()
+            ->getRows();
+
+        $rowNumber = 1; // Row 1 is the header row, so the first data row is row 2.
+
+        foreach ($rows as $row) {
+            $rowNumber++;
+
+            try {
+                $data = $this->mapBulkImportRow($row);
+            } catch (ValidationException $e) {
+                $errors[] = ['row' => $rowNumber, 'reason' => implode(' ', $e->errors()[array_key_first($e->errors())] ?? ['Invalid row.'])];
+                continue;
+            }
+
+            $validator = Validator::make($data, $this->bulkImportRulesFor($data));
+
+            if ($validator->fails()) {
+                $errors[] = ['row' => $rowNumber, 'reason' => implode(' ', $validator->errors()->all())];
+                continue;
+            }
+
+            try {
+                $this->create($data);
+                $created++;
+            } catch (\Throwable $e) {
+                report($e);
+                $errors[] = ['row' => $rowNumber, 'reason' => 'This row could not be processed — please check its values and try again.'];
+            }
+        }
+
+        return ['created' => $created, 'failed' => count($errors), 'errors' => $errors];
+    }
+
+    /** @param array<string, mixed> $data
+     *  @return array<string, array<int, mixed>> */
+    private function bulkImportRulesFor(array $data): array
+    {
+        $customerType = $data['customer_type'] ?? CustomerType::INDIVIDUAL->value;
+
+        $rules = [
+            'customer_type' => ['required', Rule::in(CustomerType::values())],
+            'first_name'    => ['required', 'string', 'max:255'],
+            'last_name'     => ['required', 'string', 'max:255'],
+            'phone'         => ['required', 'string', 'regex:/^\d+$/', 'max:15', 'unique:customers,phone'],
+            'email'         => ['nullable', 'email', 'max:255', 'unique:customers,email'],
+            'gender'        => ['nullable', 'in:male,female,other'],
+            'dob'           => ['nullable', 'date', 'before:today'],
+            'bvn'           => ['nullable', 'digits:11', 'unique:customers,bvn'],
+            'nin_number'    => ['nullable', 'digits:11', 'unique:customers,nin_number'],
+        ];
+
+        if ($customerType === CustomerType::MINOR->value) {
+            $rules['guardian_id'] = ['required', 'integer', 'exists:customers,id'];
+        }
+
+        if (in_array($customerType, CustomerType::businessLike(), true)) {
+            $rules['business.business_name'] = ['required', 'string', 'max:255'];
+            $rules['business.business_type'] = ['required', Rule::in(BusinessType::values())];
+
+            $isUnregistered = ($data['business']['business_type'] ?? null) === BusinessType::NOT_REGISTERED->value;
+
+            if (! $isUnregistered) {
+                $rules['signatories.0.first_name'] = ['required', 'string', 'max:255'];
+                $rules['signatories.0.last_name']  = ['required', 'string', 'max:255'];
+                $rules['signatories.0.phone']      = ['required', 'string', 'regex:/^\d+$/', 'max:15'];
+                $rules['signatories.0.position']   = ['required', 'string', 'max:100'];
+            }
+        }
+
+        return $rules;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @throws ValidationException if a minor row's guardian_cif doesn't resolve to a real customer
+     */
+    private function mapBulkImportRow(array $row): array
+    {
+        $customerType = trim((string) ($row['customer_type'] ?? '')) ?: CustomerType::INDIVIDUAL->value;
+
+        if (! in_array($customerType, CustomerType::values(), true)) {
+            throw ValidationException::withMessages([
+                'customer_type' => ["'{$customerType}' is not a valid customer type."],
+            ]);
+        }
+
+        $data = [
+            'customer_type'   => $customerType,
+            'first_name'      => trim((string) ($row['first_name'] ?? '')) ?: null,
+            'middle_name'     => trim((string) ($row['middle_name'] ?? '')) ?: null,
+            'last_name'       => trim((string) ($row['last_name'] ?? '')) ?: null,
+            'phone'           => trim((string) ($row['phone'] ?? '')) ?: null,
+            'email'           => trim((string) ($row['email'] ?? '')) ?: null,
+            'gender'          => trim((string) ($row['gender'] ?? '')) ?: null,
+            'dob'             => trim((string) ($row['dob'] ?? '')) ?: null,
+            'marital_status'  => trim((string) ($row['marital_status'] ?? '')) ?: null,
+            'occupation'      => trim((string) ($row['occupation'] ?? '')) ?: null,
+            'bvn'             => trim((string) ($row['bvn'] ?? '')) ?: null,
+            'nin_number'      => trim((string) ($row['nin_number'] ?? '')) ?: null,
+        ];
+
+        $address = array_filter([
+            'address' => trim((string) ($row['address'] ?? '')) ?: null,
+            'city'    => trim((string) ($row['city'] ?? '')) ?: null,
+            'state'   => trim((string) ($row['state'] ?? '')) ?: null,
+            'country' => trim((string) ($row['country'] ?? '')) ?: null,
+        ]);
+
+        if ($address) {
+            $data['address'] = $address;
+        }
+
+        // Next of kin — individual/minor only (businessLike rejects it entirely, same as
+        // the normal onboarding form).
+        if (! in_array($customerType, CustomerType::businessLike(), true)) {
+            $nextOfKinFirstName = trim((string) ($row['next_of_kin_first_name'] ?? ''));
+            $nextOfKinLastName  = trim((string) ($row['next_of_kin_last_name'] ?? ''));
+            $nextOfKinPhone     = trim((string) ($row['next_of_kin_phone'] ?? ''));
+
+            if ($nextOfKinFirstName && $nextOfKinLastName && $nextOfKinPhone) {
+                $data['next_of_kin'] = [[
+                    'first_name'   => $nextOfKinFirstName,
+                    'last_name'    => $nextOfKinLastName,
+                    'relationship' => trim((string) ($row['next_of_kin_relationship'] ?? '')) ?: null,
+                    'phone'        => $nextOfKinPhone,
+                ]];
+            }
+        }
+
+        // Minor — resolve the guardian by CIF number, since a spreadsheet can't reference
+        // another row's not-yet-created id. The guardian must already exist.
+        if ($customerType === CustomerType::MINOR->value) {
+            $guardianCif = trim((string) ($row['guardian_cif'] ?? ''));
+
+            if (! $guardianCif) {
+                throw ValidationException::withMessages([
+                    'guardian_cif' => ['A minor customer requires a guardian_cif referencing an existing customer.'],
+                ]);
+            }
+
+            $guardian = $this->findByCifNumber($guardianCif);
+
+            if (! $guardian) {
+                throw ValidationException::withMessages([
+                    'guardian_cif' => ["No customer found with CIF number '{$guardianCif}'."],
+                ]);
+            }
+
+            $data['guardian_id'] = $guardian->id;
+        }
+
+        // Business/government/corporate — a single primary signatory only (no directors;
+        // see the BULK_IMPORT_COLUMNS comment for why). Not required at all when the
+        // business is not_registered, matching StoreCustomerRequest's own rule.
+        if (in_array($customerType, CustomerType::businessLike(), true)) {
+            $businessType = trim((string) ($row['business_type'] ?? ''));
+
+            $data['business'] = array_filter([
+                'business_name'       => trim((string) ($row['business_name'] ?? '')) ?: null,
+                'business_type'       => $businessType ?: null,
+                'trading_name'        => trim((string) ($row['trading_name'] ?? '')) ?: null,
+                'registration_number' => trim((string) ($row['registration_number'] ?? '')) ?: null,
+            ]);
+
+            if ($businessType !== BusinessType::NOT_REGISTERED->value) {
+                $signatoryFirstName = trim((string) ($row['signatory_first_name'] ?? ''));
+                $signatoryLastName  = trim((string) ($row['signatory_last_name'] ?? ''));
+                $signatoryPhone     = trim((string) ($row['signatory_phone'] ?? ''));
+                $signatoryPosition  = trim((string) ($row['signatory_position'] ?? ''));
+
+                $data['signatories'] = [[
+                    'first_name' => $signatoryFirstName ?: null,
+                    'last_name'  => $signatoryLastName ?: null,
+                    'phone'      => $signatoryPhone ?: null,
+                    'position'   => $signatoryPosition ?: null,
+                ]];
+            }
+        }
+
+        return $data;
     }
 
     // Customer type is permanent and accounts belong to their own model — neither is ever touched here, no matter what the caller sends.
@@ -244,7 +571,7 @@ class CustomerService
                     $customer->documents()->create([
                         'title'       => Str::of($type)->replace('_', ' ')->title()->value(),
                         'type'        => $type,
-                        'path'        => $file->store("customer-documents/{$customer->id}", 's3'),
+                        'path'        => $this->files->upload($file, "customer-documents/{$customer->id}"),
                         'uploaded_by' => $actor?->id,
                         'status'      => 'pending',
                     ]);
@@ -283,7 +610,7 @@ class CustomerService
                 unset($director['id']);
 
                 if (($director['passport_photo'] ?? null) instanceof UploadedFile) {
-                    $director['passport_photo'] = $director['passport_photo']->store("director-photos/{$customer->id}", 's3');
+                    $director['passport_photo'] = $this->files->upload($director['passport_photo'], "director-photos/{$customer->id}");
                 }
 
                 if ($id) {
@@ -307,11 +634,11 @@ class CustomerService
                 }
 
                 if (($signatory['passport_photo'] ?? null) instanceof UploadedFile) {
-                    $signatory['passport_photo'] = $signatory['passport_photo']->store("signatory-photos/{$customer->id}", 's3');
+                    $signatory['passport_photo'] = $this->files->upload($signatory['passport_photo'], "signatory-photos/{$customer->id}");
                 }
 
                 if (($signatory['signature'] ?? null) instanceof UploadedFile) {
-                    $signatory['signature'] = $signatory['signature']->store("signatory-signatures/{$customer->id}", 's3');
+                    $signatory['signature'] = $this->files->upload($signatory['signature'], "signatory-signatures/{$customer->id}");
                 }
 
                 if ($id) {

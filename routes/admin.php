@@ -15,6 +15,7 @@ use App\Http\Controllers\Admin\CurrencyController;
 use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\FinancialTransactionController;
 use App\Http\Controllers\Admin\GeneralLedgerController;
+use App\Http\Controllers\Admin\InvestmentController;
 use App\Http\Controllers\Admin\InvestmentProductController;
 use App\Http\Controllers\Admin\JournalEntryController;
 use App\Http\Controllers\Admin\LoanProductController;
@@ -134,13 +135,19 @@ Route::middleware(['user'])->group(function () {
         Route::delete('{id}', 'destroy')->middleware('permission:delete_investment_products');
         Route::post('{id}/approve', 'approve')->middleware('permission:approve_investment_products');
         Route::post('{id}/status', 'updateStatus')->middleware('permission:update_investment_products');
+        Route::post('{id}/icon', 'uploadIcon')->middleware('permission:update_investment_products');
     });
 
     Route::prefix('customers')->controller(CustomerController::class)->group(function () {
         Route::get('/', 'index')->middleware('permission:view_customers');
         Route::post('/', 'store')->middleware('permission:create_customers');
         Route::post('bulk', 'bulkUpdate')->middleware('permission:update_customers');
+        Route::get('bulk-import/template', 'bulkImportTemplate')->middleware('permission:create_customers');
+        Route::post('bulk-import', 'bulkImport')->middleware('permission:create_customers');
         Route::get('lookup', 'lookup')->middleware('permission:view_customers');
+        Route::get('export/csv', 'exportCsvFile')->middleware('permission:view_customers');
+        Route::get('export/excel', 'exportExcelFile')->middleware('permission:view_customers');
+        Route::get('export/pdf', 'exportPdfFile')->middleware('permission:view_customers');
         Route::get('{id}', 'show')->middleware('permission:view_customers');
         Route::put('{id}', 'update')->middleware('permission:update_customers');
         Route::post('{id}/approve', 'approve')->middleware('permission:update_customers');
@@ -161,11 +168,31 @@ Route::middleware(['user'])->group(function () {
 
     Route::prefix('accounts')->controller(AccountController::class)->group(function () {
         Route::get('/', 'index')->middleware('permission:view_accounts');
+        Route::get('lookup', 'lookup')->middleware('permission:view_accounts');
         Route::get('{id}', 'show')->middleware('permission:view_accounts');
         Route::get('{id}/transactions', 'transactions')->middleware('permission:view_accounts');
         Route::post('{id}/status', 'updateStatus')->middleware('permission:update_accounts');
         Route::post('{id}/toggle-pnd', 'togglePnd')->middleware('permission:update_accounts');
         Route::post('{id}/toggle-pnc', 'togglePnc')->middleware('permission:update_accounts');
+    });
+
+    Route::prefix('investments')->controller(InvestmentController::class)->group(function () {
+        Route::get('/', 'index')->middleware('permission:view_investments');
+        Route::post('/', 'store')->middleware('permission:create_investments');
+        Route::post('preview-schedule', 'previewSchedule')->middleware('permission:create_investments');
+        Route::get('{id}', 'show')->middleware('permission:view_investments');
+        Route::get('{id}/transactions', 'transactions')->middleware('permission:view_investments');
+        Route::get('{id}/schedule', 'schedule')->middleware('permission:view_investments');
+        Route::get('{id}/schedule/previous', 'previousSchedule')->middleware('permission:view_investments');
+        Route::get('{id}/approval-preview', 'previewApproval')->middleware('permission:approve_investments');
+        Route::post('{id}/approve', 'approve')->middleware('permission:approve_investments');
+        Route::post('{id}/reject', 'reject')->middleware('permission:approve_investments');
+        Route::post('{id}/topup/preview', 'previewTopUp')->middleware('permission:create_investments');
+        Route::post('{id}/topup', 'requestTopUp')->middleware('permission:create_investments');
+        Route::get('{id}/topup/pending-preview', 'previewPendingTopUp')->middleware('permission:approve_investments');
+        Route::post('{id}/topup/approve', 'approveTopUp')->middleware('permission:approve_investments');
+        Route::post('{id}/topup/reject', 'rejectTopUp')->middleware('permission:approve_investments');
+        Route::post('{id}/terminate', 'terminate')->middleware('permission:approve_investments');
     });
 
     Route::prefix('general-ledgers')->controller(GeneralLedgerController::class)->group(function () {

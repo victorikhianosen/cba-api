@@ -8,9 +8,9 @@ enum AccountProduct: string
 {
     case SAVINGS = 'savings';
     case CURRENT = 'current';
+    case DOMICILIARY = 'domiciliary';
     // case MERCHANT = 'merchant';
     // case CORPORATE = 'corporate';
-    // case DOMICILIARY = 'domiciliary';
     // case VRITUAL = 'virtual';
     // case WALLET = 'wallet';
 

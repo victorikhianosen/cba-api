@@ -5,23 +5,26 @@ declare(strict_types=1);
 namespace App\Services\InvestmentProduct;
 
 use App\Enums\GeneralLedger\GeneralLedgerStatus;
-use App\Enums\Product\AccountProductType;
+use App\Enums\Product\InvestmentProductType;
 use App\Models\Currency;
 use App\Models\GeneralLedger;
 use App\Models\InvestmentProduct;
 use App\Models\ProductToGlAccountMapping;
 use App\Services\Audit\AuditService;
+use App\Services\Storage\FileStorageService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class InvestmentProductService
 {
-    private const CODE_PREFIX = 'INV';
+    private const CODE_PREFIX = 'INVP';
 
     public function __construct(
         private AuditService $audit,
+        private FileStorageService $files,
     ) {}
 
     public function list(int $perPage = 15): LengthAwarePaginator
@@ -38,11 +41,11 @@ class InvestmentProductService
         return InvestmentProduct::with('generalLedgerMappings.generalLedger')->findOrFail($id);
     }
 
-    public function create(array $data): InvestmentProduct
+    public function create(array $data, ?UploadedFile $icon = null): InvestmentProduct
     {
         $actor = Auth::guard('user')->user();
 
-        $investmentProduct = DB::transaction(function () use ($data) {
+        $investmentProduct = DB::transaction(function () use ($data, $icon) {
             $currency = Currency::findOrFail($data['currency_id']);
 
             $this->assertGeneralLedgerMappingsAreValid($data['general_ledgers'], $currency);
@@ -54,10 +57,14 @@ class InvestmentProductService
             $data['currency_code'] = $currency->code;
             $data['created_by']    = Auth::guard('user')->id();
 
+            if ($icon) {
+                $data['icon'] = $this->files->upload($icon, 'investment-product-icons');
+            }
+
             $investmentProduct = InvestmentProduct::create($data)->refresh();
 
             foreach ($generalLedgers as $mapping) {
-                $type = AccountProductType::fromName($mapping['financial_account_type']);
+                $type = InvestmentProductType::fromName($mapping['financial_account_type']);
 
                 $investmentProduct->generalLedgerMappings()->create([
                     'general_ledger_id'           => $mapping['general_ledger_id'],
@@ -110,6 +117,27 @@ class InvestmentProductService
         );
 
         return $investmentProduct;
+    }
+
+    public function uploadIcon(InvestmentProduct $investmentProduct, UploadedFile $file): InvestmentProduct
+    {
+        $before = $investmentProduct->icon;
+        $actor  = Auth::guard('user')->user();
+
+        $path = $this->files->upload($file, 'investment-product-icons');
+
+        $investmentProduct->update(['icon' => $path]);
+
+        $this->files->delete($before);
+
+        $this->audit->log(
+            action: 'icon_updated',
+            module: 'investment_products',
+            auditable: $investmentProduct,
+            description: "Icon for investment product '{$investmentProduct->name}' ({$investmentProduct->code}) was updated by '{$actor?->username}'.",
+        );
+
+        return $investmentProduct->refresh();
     }
 
     public function approve(InvestmentProduct $investmentProduct): InvestmentProduct
@@ -184,14 +212,14 @@ class InvestmentProductService
         $providedTypes = collect($mappings)->pluck('financial_account_type');
 
         foreach ($providedTypes as $name) {
-            if (! in_array($name, AccountProductType::names(), true)) {
+            if (! in_array($name, InvestmentProductType::names(), true)) {
                 throw ValidationException::withMessages([
                     'general_ledgers' => ["'{$name}' is not a valid financial account type for investment products."],
                 ]);
             }
         }
 
-        foreach (AccountProductType::required() as $type) {
+        foreach (InvestmentProductType::required() as $type) {
             if (! $providedTypes->contains($type->name)) {
                 throw ValidationException::withMessages([
                     'general_ledgers' => ["{$type->label()} GL mapping is required."],

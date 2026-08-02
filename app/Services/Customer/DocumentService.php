@@ -8,17 +8,18 @@ use App\Models\Customer;
 use App\Models\Document;
 use App\Models\User;
 use App\Services\Audit\AuditService;
+use App\Services\Storage\FileStorageService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class DocumentService
 {
     public function __construct(
         private AuditService $audit,
+        private FileStorageService $files,
     ) {}
 
     public function find(Customer $customer, int $documentId): Document
@@ -37,7 +38,7 @@ class DocumentService
 
         $documents = DB::transaction(function () use ($customer, $files, $actor) {
             return collect($files)->map(function (UploadedFile $file, string $type) use ($customer, $actor) {
-                $path = $file->store("customer-documents/{$customer->id}", 's3');
+                $path = $this->files->upload($file, "customer-documents/{$customer->id}");
 
                 return $customer->documents()->create([
                     'title'       => Str::of($type)->replace('_', ' ')->title()->value(),

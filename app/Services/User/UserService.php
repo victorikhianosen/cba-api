@@ -7,10 +7,10 @@ namespace App\Services\User;
 use App\Models\User;
 use App\Services\Audit\AuditService;
 use App\Services\Communication\CommunicationService;
+use App\Services\Storage\FileStorageService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -20,7 +20,7 @@ class UserService
     public function __construct(
         private AuditService $audit,
         private CommunicationService $message,
-
+        private FileStorageService $files,
     ) {}
 
     public function list(int $perPage = 15): LengthAwarePaginator
@@ -153,14 +153,12 @@ class UserService
         $user = $this->find($id);
         $before = $user->profile_picture;
 
-        $path = $file->store('profile-pictures', 's3');
+        $path = $this->files->upload($file, 'profile-pictures');
 
         $user->update(['profile_picture' => $path]);
         $user->refresh();
 
-        if ($before) {
-            Storage::disk('s3')->delete($before);
-        }
+        $this->files->delete($before);
 
         $this->audit->log(
             action: 'profile_picture_updated',

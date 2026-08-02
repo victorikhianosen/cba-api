@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace App\Services\Bank;
 
 use App\Models\Bank;
+use App\Services\Storage\FileStorageService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
 
 class BankService
 {
+    public function __construct(
+        private FileStorageService $files,
+    ) {}
+
     public function list(int $perPage = 15, ?string $search = null): LengthAwarePaginator
     {
         return Bank::query()
@@ -32,7 +36,7 @@ class BankService
     public function create(array $data, ?UploadedFile $logo = null): Bank
     {
         if ($logo) {
-            $data['logo'] = $logo->store('bank-logos', 's3');
+            $data['logo'] = $this->files->upload($logo, 'bank-logos');
         }
 
         return Bank::create($data);
@@ -54,13 +58,11 @@ class BankService
     {
         $before = $bank->logo;
 
-        $path = $file->store('bank-logos', 's3');
+        $path = $this->files->upload($file, 'bank-logos');
 
         $bank->update(['logo' => $path]);
 
-        if ($before) {
-            Storage::disk('s3')->delete($before);
-        }
+        $this->files->delete($before);
 
         return $bank->refresh();
     }

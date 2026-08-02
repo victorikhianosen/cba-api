@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Resources\Admin\Customer;
 
+use App\Services\Storage\FileStorageService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Storage;
 
 class DocumentResource extends JsonResource
 {
@@ -18,7 +18,7 @@ class DocumentResource extends JsonResource
             'account_id'  => $this->account_id,
             'title'       => $this->title,
             'path'        => $this->path,
-            'url'         => $this->path ? Storage::disk('s3')->url($this->path) : null,
+            'url'         => app(FileStorageService::class)->url($this->path),
             'type'        => $this->type,
             'uploaded_by' => $this->uploaded_by,
             'status'      => $this->status,

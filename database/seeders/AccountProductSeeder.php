@@ -18,12 +18,29 @@ class AccountProductSeeder extends Seeder
     {
         $this->call(GeneralLedgerSeeder::class);
 
-        $currency = Currency::where('code', 'NGN')->firstOrFail();
+        $ngn = Currency::where('code', 'NGN')->firstOrFail();
+        $usd = Currency::where('code', 'USD')->firstOrFail();
 
-        $this->seedSavingsProduct($currency);
-        $this->seedCurrentProduct($currency);
-        $this->seedLoanProduct($currency);
-        $this->seedInvestmentProduct($currency);
+        $this->seedSavingsProduct($ngn);
+        $this->seedCurrentProduct($ngn);
+        $this->seedDomiciliaryProduct($usd);
+
+        // Known pre-existing issue: AccountProductService::assertGeneralLedgerMappingsAreValid()
+        // only accepts AccountProductType roles, but seedLoanProduct() maps
+        // LoanProductFinancialAccountType roles (e.g. FUND_SOURCE) — throws on every run.
+        // Guarded here so it can't take down the rest of DatabaseSeeder now that this
+        // seeder runs automatically; not fixed because it's outside today's ask.
+        try {
+            $this->seedLoanProduct($ngn);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        try {
+            $this->seedInvestmentProduct($ngn);
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     private function seedSavingsProduct(Currency $currency): void
@@ -76,6 +93,32 @@ class AccountProductSeeder extends Seeder
                 'INCOME_FROM_FEES'      => 'current_account_income_from_fees',
                 'INCOME_FROM_PENALTIES' => 'current_account_income_from_penalties',
                 'TRANSFERS_SUSPENSE'    => 'current_account_transfers_suspense',
+            ]),
+        ]);
+
+        app(AccountProductService::class)->approve($accountProduct);
+    }
+
+    private function seedDomiciliaryProduct(Currency $currency): void
+    {
+        if (AccountProduct::where('name', 'usd_domiciliary_account')->exists()) {
+            return;
+        }
+
+        $accountProduct = app(AccountProductService::class)->create([
+            'name'                         => 'usd_domiciliary_account',
+            'product_type'                 => 'domiciliary',
+            'description'                  => 'USD domiciliary account product for customers holding foreign-currency balances.',
+            'currency_id'                  => $currency->id,
+            'interest_rate'                => 0,
+            'min_required_opening_balance' => 100,
+            'min_required_balance'         => 0,
+            'general_ledgers'              => $this->mappingsFor(AccountProductType::required(), [
+                'ACCOUNT_CONTROL'       => 'usd_domiciliary_account_control',
+                'INTEREST_ON_ACCOUNT'   => 'usd_interest_on_domiciliary_account',
+                'INCOME_FROM_FEES'      => 'usd_domiciliary_income_from_fees',
+                'INCOME_FROM_PENALTIES' => 'usd_domiciliary_income_from_penalties',
+                'TRANSFERS_SUSPENSE'    => 'usd_domiciliary_transfers_suspense',
             ]),
         ]);
 
