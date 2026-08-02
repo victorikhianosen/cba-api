@@ -15,7 +15,6 @@ class SignatoryResource extends JsonResource
         return [
             'id'                  => $this->id,
             'customer_id'         => $this->customer_id,
-            'director_id'         => $this->director_id,
             'title'               => $this->title,
             'first_name'          => $this->first_name,
             'middle_name'         => $this->middle_name,

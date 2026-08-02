@@ -22,7 +22,7 @@ class StoreCustomerRequest extends FormRequest
     public function rules(): array
     {
         $businessLikeTypes = implode(',', CustomerType::businessLike());
-        $isCorporate        = $this->input('customer_type') === CustomerType::CORPORATE->value;
+        $isBusinessLike     = in_array($this->input('customer_type'), CustomerType::businessLike(), true);
 
         // A business-like customer whose business_type is "not_registered" is captured just like
         // an individual — no signatories/directors required, only the normal personal fields + business block.
@@ -37,9 +37,9 @@ class StoreCustomerRequest extends FormRequest
             'guardian_id'         => ['nullable', 'integer', 'exists:customers,id'],
 
             'title'          => ['nullable', 'string', 'max:20'],
-            'first_name'     => ["required_if:customer_type,individual,minor,{$businessLikeTypes}", 'nullable', 'string', 'max:255'],
+            'first_name'     => ["required_if:customer_type,individual,{$businessLikeTypes}", 'nullable', 'string', 'max:255'],
             'middle_name'    => ['nullable', 'string', 'max:255'],
-            'last_name'      => ["required_if:customer_type,individual,minor,{$businessLikeTypes}", 'nullable', 'string', 'max:255'],
+            'last_name'      => ["required_if:customer_type,individual,{$businessLikeTypes}", 'nullable', 'string', 'max:255'],
 
             'phone'    => ['required', 'string', 'regex:/^\d+$/', 'max:15', 'unique:customers,phone'],
             'email'    => ['nullable', 'email', 'max:255', 'unique:customers,email'],
@@ -91,10 +91,12 @@ class StoreCustomerRequest extends FormRequest
             'business' => ["required_if:customer_type,{$businessLikeTypes}", "prohibited_unless:customer_type,{$businessLikeTypes}", 'array'],
             ...$this->businessRules(null),
 
-            // Directors — corporate customers only (not business/government), and not required
-            // when the corporate's business_type is not_registered.
+            // Directors — an optional addition available to any business-like customer (not
+            // a distinct "corporate" type), and not offered at all when the business is
+            // not_registered. Whether a business "is corporate" is just "does it have
+            // director rows", not a separate category.
             'directors' => [
-                $isCorporate && ! $isUnregisteredBusiness ? 'sometimes' : 'prohibited',
+                $isBusinessLike && ! $isUnregisteredBusiness ? 'sometimes' : 'prohibited',
                 'nullable',
                 'array',
             ],

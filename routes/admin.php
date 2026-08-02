@@ -238,6 +238,8 @@ Route::middleware(['user'])->group(function () {
         Route::get('/', 'index')->middleware('permission:view_postings');
         Route::post('/', 'store')->middleware('permission:create_postings');
         Route::post('bulk-approve', 'bulkApprove')->middleware('permission:approve_postings');
+        Route::get('bulk-import/template', 'bulkImportTemplate')->middleware('permission:create_postings');
+        Route::post('bulk-import', 'bulkImport')->middleware('permission:create_postings');
         Route::get('export/csv', 'exportCsvFile')->middleware('permission:view_postings');
         Route::get('export/excel', 'exportExcelFile')->middleware('permission:view_postings');
         Route::get('export/pdf', 'exportPdfFile')->middleware('permission:view_postings');

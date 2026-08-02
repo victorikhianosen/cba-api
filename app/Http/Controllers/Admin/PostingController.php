@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\Posting\BulkImportPostingsRequest;
 use App\Http\Requests\Admin\Posting\RejectPostingRequest;
 use App\Http\Requests\Admin\Posting\StorePostingRequest;
 use App\Http\Resources\Admin\Posting\FinancialTransactionResource;
@@ -18,6 +19,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use Spatie\SimpleExcel\SimpleExcelWriter;
 
 class PostingController extends Controller
 {
@@ -52,6 +54,44 @@ class PostingController extends Controller
         return $this->success(
             message: 'Posting retrieved successfully.',
             data: new PostingResource($posting),
+        );
+    }
+
+    // Two sheets in one workbook: "Postings" (what to fill in) and "GL Reference" (every
+    // active GL's code/name/currency/classification/balance, to look up without leaving the
+    // file) — SimpleExcelWriter's addNewSheetAndMakeItCurrent() makes this a single
+    // streamed-download response, not two separate exports.
+    public function bulkImportTemplate()
+    {
+        $filename = 'postings_bulk_import_template.xlsx';
+
+        return response()->streamDownload(function () use ($filename) {
+            $writer = SimpleExcelWriter::streamDownload($filename);
+            $writer->nameCurrentSheet('Postings');
+
+            foreach ($this->postings->bulkImportTemplateRows() as $row) {
+                $writer->addRow($row);
+            }
+
+            $writer->addNewSheetAndMakeItCurrent('GL Reference');
+
+            foreach ($this->postings->glReferenceRows() as $row) {
+                $writer->addRow($row);
+            }
+
+            $writer->close();
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    public function bulkImport(BulkImportPostingsRequest $request): JsonResponse
+    {
+        $result = $this->postings->bulkImport($request->file('file'));
+
+        return $this->success(
+            message: "{$result['created']} posting(s) created, {$result['failed']} failed.",
+            data: $result,
         );
     }
 

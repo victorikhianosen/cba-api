@@ -6,6 +6,7 @@ namespace App\Services\Customer;
 
 use App\Enums\Customer\BusinessType;
 use App\Enums\Customer\CustomerType;
+use App\Enums\Customer\LegalForm;
 use App\Models\AccountProduct;
 use App\Models\Customer;
 use App\Services\Account\AccountService;
@@ -170,24 +171,15 @@ class CustomerService
                 $customer->business()->create($business);
             }
 
-            $createdDirectors = [];
-
-            foreach ($directors as $index => $director) {
+            foreach ($directors as $director) {
                 if (($director['passport_photo'] ?? null) instanceof UploadedFile) {
                     $director['passport_photo'] = $this->files->upload($director['passport_photo'], "director-photos/{$customer->id}");
                 }
 
-                $createdDirectors[$index] = $customer->directors()->create($director);
+                $customer->directors()->create($director);
             }
 
             foreach ($signatories as $signatory) {
-                $directorIndex = $signatory['director_index'] ?? null;
-                unset($signatory['director_index']);
-
-                $signatory['director_id'] = $directorIndex !== null
-                    ? ($createdDirectors[$directorIndex]->id ?? null)
-                    : null;
-
                 if (($signatory['passport_photo'] ?? null) instanceof UploadedFile) {
                     $signatory['passport_photo'] = $this->files->upload($signatory['passport_photo'], "signatory-photos/{$customer->id}");
                 }
@@ -220,30 +212,79 @@ class CustomerService
         return $customer;
     }
 
-    // Column headers for the bulk-import template/upload — covers all 5 customer types on
-    // one flat row each. Business-like rows (business/government/corporate) carry a single
-    // primary signatory only — directors are optional even for corporate per
-    // StoreCustomerRequest's own rules ('sometimes', not required), so they're left out of
-    // the flat-row format entirely; a corporate customer needing multiple directors/
-    // signatories should still go through the normal onboarding form for that part.
+    // Column headers for the bulk-import template/upload — covers both customer types
+    // (individual, business) on one flat row each; a minor is an individual with
+    // guardian_account_number filled in, "corporate" isn't a separate type at all — it's a
+    // business row with director rows added, which this flat format doesn't carry
+    // (directors are optional per StoreCustomerRequest's own rules and left out here; a
+    // business needing directors should go through the normal onboarding form for that
+    // part) — and "government" isn't a separate type either, it's a business row with
+    // legal_form = 'government'. Business-like rows carry a single primary signatory only.
     public const BULK_IMPORT_COLUMNS = [
-        'customer_type',
+        'customer_type', 'legal_form',
         'first_name', 'middle_name', 'last_name', 'phone', 'email', 'gender', 'dob',
         'marital_status', 'occupation', 'bvn', 'nin_number',
         'address', 'city', 'state', 'country',
         'next_of_kin_first_name', 'next_of_kin_last_name', 'next_of_kin_relationship', 'next_of_kin_phone',
-        'guardian_cif',
+        'guardian_account_number',
         'business_name', 'business_type', 'trading_name', 'registration_number',
         'signatory_first_name', 'signatory_last_name', 'signatory_phone', 'signatory_position',
     ];
 
-    /** @return array<int, array<string, mixed>> */
+    // Human-readable column headers for the downloadable template — the raw snake_case
+    // BULK_IMPORT_COLUMNS keys are an internal implementation detail and shouldn't be shown
+    // to admins filling in the sheet. SimpleExcelReader::headersToSnakeCase() (used in
+    // bulkImport() below) converts these labels straight back to the internal keys on
+    // upload, so this is purely cosmetic — no change needed on the read side.
+    private const BULK_IMPORT_COLUMN_LABELS = [
+        'customer_type'            => 'Customer Type',
+        'legal_form'                => 'Legal Form',
+        'first_name'                => 'First Name',
+        'middle_name'               => 'Middle Name',
+        'last_name'                 => 'Last Name',
+        'phone'                     => 'Phone',
+        'email'                     => 'Email',
+        'gender'                    => 'Gender',
+        'dob'                       => 'DOB',
+        'marital_status'            => 'Marital Status',
+        'occupation'                => 'Occupation',
+        'bvn'                       => 'BVN',
+        'nin_number'                => 'NIN Number',
+        'address'                   => 'Address',
+        'city'                      => 'City',
+        'state'                     => 'State',
+        'country'                   => 'Country',
+        'next_of_kin_first_name'    => 'Next of Kin First Name',
+        'next_of_kin_last_name'     => 'Next of Kin Last Name',
+        'next_of_kin_relationship'  => 'Next of Kin Relationship',
+        'next_of_kin_phone'         => 'Next of Kin Phone',
+        'guardian_account_number'   => 'Guardian Account Number',
+        'business_name'             => 'Business Name',
+        'business_type'             => 'Business Type',
+        'trading_name'              => 'Trading Name',
+        'registration_number'       => 'Registration Number',
+        'signatory_first_name'      => 'Signatory First Name',
+        'signatory_last_name'       => 'Signatory Last Name',
+        'signatory_phone'           => 'Signatory Phone',
+        'signatory_position'        => 'Signatory Position',
+    ];
+
+    /**
+     * One fully-filled example row per customer type — every column that actually applies
+     * to that type carries a realistic sample value (not left blank just because it
+     * happened to inherit that way from another row), so the template is instructive on
+     * its own without needing extra documentation.
+     *
+     * @return array<int, array<string, mixed>>
+     */
     public function bulkImportTemplateRows(): array
     {
-        $individual = [
+        $blank = array_fill_keys(self::BULK_IMPORT_COLUMNS, '');
+
+        $individual = array_merge($blank, [
             'customer_type'            => 'individual',
             'first_name'               => 'Jane',
-            'middle_name'              => '',
+            'middle_name'              => 'Ade',
             'last_name'                => 'Doe',
             'phone'                    => '08012345678',
             'email'                    => 'jane.doe@example.com',
@@ -261,59 +302,110 @@ class CustomerService
             'next_of_kin_last_name'    => 'Doe',
             'next_of_kin_relationship' => 'Spouse',
             'next_of_kin_phone'        => '08098765432',
-            'guardian_cif'             => '',
-            'business_name'            => '',
-            'business_type'            => '',
-            'trading_name'             => '',
-            'registration_number'      => '',
-            'signatory_first_name'     => '',
-            'signatory_last_name'      => '',
-            'signatory_phone'          => '',
-            'signatory_position'       => '',
-        ];
-
-        $minor = array_merge($individual, [
-            'customer_type'          => 'minor',
-            'first_name'             => 'Baby',
-            'last_name'              => 'Doe',
-            'phone'                  => '08011112222',
-            'email'                  => '',
-            'dob'                    => '2015-06-01',
-            'bvn'                    => '',
-            'nin_number'             => '',
-            'guardian_cif'           => 'CIF-SEED-0001',
-            'next_of_kin_first_name' => '',
-            'next_of_kin_last_name'  => '',
-            'next_of_kin_phone'      => '',
         ]);
 
-        $corporate = array_merge($individual, [
-            'customer_type'            => 'corporate',
-            'first_name'               => 'Ade',
-            'last_name'                => 'Balogun',
-            'phone'                    => '08033334444',
-            'next_of_kin_first_name'   => '',
-            'next_of_kin_last_name'    => '',
-            'next_of_kin_relationship' => '',
-            'next_of_kin_phone'        => '',
-            'business_name'            => 'Acme Traders Limited',
-            'business_type'            => 'limited_liability',
-            'trading_name'             => 'Acme Traders',
-            'registration_number'      => 'RC1234567',
-            'signatory_first_name'     => 'Ade',
-            'signatory_last_name'      => 'Balogun',
-            'signatory_phone'          => '08033334444',
-            'signatory_position'       => 'Managing Director',
+        // A minor is not its own customer_type — it's an individual with
+        // guardian_account_number filled in (resolved to guardian_id below).
+        $minor = array_merge($blank, [
+            'customer_type'            => 'individual',
+            'first_name'               => 'Baby',
+            'middle_name'              => 'Tolu',
+            'last_name'                => 'Doe',
+            'phone'                    => '08011112222',
+            'gender'                   => 'female',
+            'dob'                      => '2015-06-01',
+            'address'                  => '12 Marina Street',
+            'city'                     => 'Lagos',
+            'state'                    => 'Lagos',
+            'country'                  => 'Nigeria',
+            'next_of_kin_first_name'   => 'John',
+            'next_of_kin_last_name'    => 'Doe',
+            'next_of_kin_relationship' => 'Father',
+            'next_of_kin_phone'        => '08098765432',
+            'guardian_account_number'  => '1000000001',
         ]);
 
-        return [$individual, $minor, $corporate];
+        $business = array_merge($blank, [
+            'customer_type'        => 'business',
+            'first_name'           => 'Chidi',
+            'middle_name'          => 'Emeka',
+            'last_name'            => 'Okafor',
+            'phone'                => '08022223333',
+            'email'                => 'chidi.okafor@example.com',
+            'gender'               => 'male',
+            'dob'                  => '1985-03-20',
+            'marital_status'       => 'married',
+            'occupation'           => 'Business Owner',
+            'bvn'                  => '22345678901',
+            'nin_number'           => '22345678901',
+            'address'              => '45 Broad Street',
+            'city'                 => 'Lagos',
+            'state'                => 'Lagos',
+            'country'              => 'Nigeria',
+            'business_name'        => 'Okafor Ventures',
+            'business_type'        => 'business_name',
+            'trading_name'         => 'Okafor Stores',
+            'registration_number'  => 'BN9876543',
+            'signatory_first_name' => 'Chidi',
+            'signatory_last_name'  => 'Okafor',
+            'signatory_phone'      => '08022223333',
+            'signatory_position'   => 'Proprietor',
+        ]);
+
+        $government = array_merge($blank, [
+            'customer_type'        => 'business',
+            'legal_form'           => 'government',
+            'first_name'           => 'Amina',
+            'middle_name'          => 'Bello',
+            'last_name'            => 'Yusuf',
+            'phone'                => '08044445555',
+            'email'                => 'amina.yusuf@example.gov.ng',
+            'gender'               => 'female',
+            'dob'                  => '1978-11-02',
+            'marital_status'       => 'married',
+            'occupation'           => 'Civil Servant',
+            'bvn'                  => '33345678901',
+            'nin_number'           => '33345678901',
+            'address'              => '1 Secretariat Road',
+            'city'                 => 'Abuja',
+            'state'                => 'FCT',
+            'country'              => 'Nigeria',
+            'business_name'        => 'Ministry of Works',
+            'business_type'        => 'government',
+            'trading_name'         => '',
+            'registration_number'  => 'GOV-0001',
+            'signatory_first_name' => 'Amina',
+            'signatory_last_name'  => 'Yusuf',
+            'signatory_phone'      => '08044445555',
+            'signatory_position'   => 'Permanent Secretary',
+        ]);
+
+        return array_map(
+            fn (array $row) => $this->relabelBulkImportRow($row),
+            [$individual, $minor, $business, $government],
+        );
+    }
+
+    // Swaps a row's internal snake_case keys for the human-readable headers an admin should
+    // actually see in the downloaded template (see BULK_IMPORT_COLUMN_LABELS above).
+    private function relabelBulkImportRow(array $row): array
+    {
+        $labelled = [];
+
+        foreach ($row as $column => $value) {
+            $labelled[self::BULK_IMPORT_COLUMN_LABELS[$column] ?? $column] = $value;
+        }
+
+        return $labelled;
     }
 
     /**
-     * Parses an uploaded spreadsheet and creates one customer per row (any of the 5
-     * customer types — see mapBulkImportRow()), isolating each row in its own try/catch
-     * (mirroring PostingService::bulkApprove()'s pattern) so a bad row (duplicate phone,
-     * missing name, whatever) never blocks or rolls back the rest of the batch.
+     * Parses an uploaded spreadsheet and creates one customer per row (either of the 2
+     * customer types — individual [optionally a minor, via guardian_account_number] or
+     * business [optionally government, via legal_form] — see mapBulkImportRow()), isolating each row in its own
+     * try/catch (mirroring PostingService::bulkApprove()'s pattern) so a bad row
+     * (duplicate phone, missing name, whatever) never blocks or rolls back the rest of the
+     * batch.
      *
      * @return array{created: int, failed: int, errors: array<int, array{row: int, reason: string}>}
      */
@@ -365,6 +457,7 @@ class CustomerService
 
         $rules = [
             'customer_type' => ['required', Rule::in(CustomerType::values())],
+            'legal_form'    => ['nullable', Rule::in(LegalForm::values())],
             'first_name'    => ['required', 'string', 'max:255'],
             'last_name'     => ['required', 'string', 'max:255'],
             'phone'         => ['required', 'string', 'regex:/^\d+$/', 'max:15', 'unique:customers,phone'],
@@ -375,9 +468,9 @@ class CustomerService
             'nin_number'    => ['nullable', 'digits:11', 'unique:customers,nin_number'],
         ];
 
-        if ($customerType === CustomerType::MINOR->value) {
-            $rules['guardian_id'] = ['required', 'integer', 'exists:customers,id'];
-        }
+        // Minor isn't a separate customer_type — it's an individual with guardian_id set.
+        // guardian_id itself is resolved (and validated as a real account) in
+        // mapBulkImportRow() before this runs; nothing extra to require here.
 
         if (in_array($customerType, CustomerType::businessLike(), true)) {
             $rules['business.business_name'] = ['required', 'string', 'max:255'];
@@ -398,7 +491,7 @@ class CustomerService
 
     /**
      * @param array<string, mixed> $row
-     * @throws ValidationException if a minor row's guardian_cif doesn't resolve to a real customer
+     * @throws ValidationException if guardian_account_number is set but doesn't resolve to a real account
      */
     private function mapBulkImportRow(array $row): array
     {
@@ -412,6 +505,7 @@ class CustomerService
 
         $data = [
             'customer_type'   => $customerType,
+            'legal_form'      => trim((string) ($row['legal_form'] ?? '')) ?: null,
             'first_name'      => trim((string) ($row['first_name'] ?? '')) ?: null,
             'middle_name'     => trim((string) ($row['middle_name'] ?? '')) ?: null,
             'last_name'       => trim((string) ($row['last_name'] ?? '')) ?: null,
@@ -436,8 +530,8 @@ class CustomerService
             $data['address'] = $address;
         }
 
-        // Next of kin — individual/minor only (businessLike rejects it entirely, same as
-        // the normal onboarding form).
+        // Next of kin — individuals only (businessLike rejects it entirely, same as the
+        // normal onboarding form). Applies whether or not this individual is a minor.
         if (! in_array($customerType, CustomerType::businessLike(), true)) {
             $nextOfKinFirstName = trim((string) ($row['next_of_kin_first_name'] ?? ''));
             $nextOfKinLastName  = trim((string) ($row['next_of_kin_last_name'] ?? ''));
@@ -453,31 +547,28 @@ class CustomerService
             }
         }
 
-        // Minor — resolve the guardian by CIF number, since a spreadsheet can't reference
-        // another row's not-yet-created id. The guardian must already exist.
-        if ($customerType === CustomerType::MINOR->value) {
-            $guardianCif = trim((string) ($row['guardian_cif'] ?? ''));
+        // Minor isn't a separate customer_type — it's an individual with guardian_id set.
+        // guardian_account_number is optional; when filled in (for any individual row), it's
+        // resolved by account number (not CIF), matching the same account-number-first
+        // lookup pattern used for investment funding accounts. A spreadsheet can't reference
+        // another row's not-yet-created id, so the guardian must already have an account.
+        $guardianAccountNumber = trim((string) ($row['guardian_account_number'] ?? ''));
 
-            if (! $guardianCif) {
+        if ($guardianAccountNumber !== '') {
+            $guardianAccount = $this->accounts->findByAccountNumber($guardianAccountNumber);
+
+            if (! $guardianAccount || ! $guardianAccount->customer) {
                 throw ValidationException::withMessages([
-                    'guardian_cif' => ['A minor customer requires a guardian_cif referencing an existing customer.'],
+                    'guardian_account_number' => ["No account found with account number '{$guardianAccountNumber}'."],
                 ]);
             }
 
-            $guardian = $this->findByCifNumber($guardianCif);
-
-            if (! $guardian) {
-                throw ValidationException::withMessages([
-                    'guardian_cif' => ["No customer found with CIF number '{$guardianCif}'."],
-                ]);
-            }
-
-            $data['guardian_id'] = $guardian->id;
+            $data['guardian_id'] = $guardianAccount->customer->id;
         }
 
-        // Business/government/corporate — a single primary signatory only (no directors;
-        // see the BULK_IMPORT_COLUMNS comment for why). Not required at all when the
-        // business is not_registered, matching StoreCustomerRequest's own rule.
+        // Business (including government, via legal_form) — a single primary signatory only (no directors; see the
+        // BULK_IMPORT_COLUMNS comment for why). Not required at all when the business is
+        // not_registered, matching StoreCustomerRequest's own rule.
         if (in_array($customerType, CustomerType::businessLike(), true)) {
             $businessType = trim((string) ($row['business_type'] ?? ''));
 
@@ -603,9 +694,7 @@ class CustomerService
                 $customer->business()->updateOrCreate([], $business);
             }
 
-            $directorIdByIndex = [];
-
-            foreach ($directors as $index => $director) {
+            foreach ($directors as $director) {
                 $id = $director['id'] ?? null;
                 unset($director['id']);
 
@@ -615,23 +704,15 @@ class CustomerService
 
                 if ($id) {
                     $customer->directors()->whereKey($id)->update($director);
-                    $directorIdByIndex[$index] = $id;
                     continue;
                 }
 
-                $directorIdByIndex[$index] = $customer->directors()->create($director)->id;
+                $customer->directors()->create($director);
             }
 
             foreach ($signatories as $signatory) {
                 $id = $signatory['id'] ?? null;
                 unset($signatory['id']);
-
-                $directorIndex = $signatory['director_index'] ?? null;
-                unset($signatory['director_index']);
-
-                if ($directorIndex !== null) {
-                    $signatory['director_id'] = $directorIdByIndex[$directorIndex] ?? null;
-                }
 
                 if (($signatory['passport_photo'] ?? null) instanceof UploadedFile) {
                     $signatory['passport_photo'] = $this->files->upload($signatory['passport_photo'], "signatory-photos/{$customer->id}");

@@ -76,7 +76,8 @@ trait HasNestedCustomerRules
         ];
     }
 
-    // Directors — corporate customers only. Optional per-signatory linkage via director_index below.
+    // Directors — an optional addition on any business-like customer (business, including
+    // government via legal_form), not a distinct "corporate" type.
     private function directorRules(?int $customerId): array
     {
         $rules = [
@@ -113,7 +114,6 @@ trait HasNestedCustomerRules
     private function signatoryRules(?int $customerId): array
     {
         $rules = [
-            'signatories.*.director_index' => ['nullable', 'integer', 'min:0'],
             'signatories.*.title'          => ['nullable', 'string', 'max:20'],
             'signatories.*.first_name'     => ['required_without:signatories.*.id', 'nullable', 'string', 'max:255'],
             'signatories.*.middle_name'    => ['nullable', 'string', 'max:255'],
@@ -132,8 +132,6 @@ trait HasNestedCustomerRules
 
         if ($customerId) {
             $rules['signatories.*.id'] = ['sometimes', 'nullable', 'integer', Rule::exists('signatories', 'id')->where('customer_id', $customerId)];
-        } else {
-            $rules['signatories.*.director_index'][] = 'lt:directors_count';
         }
 
         return $rules;

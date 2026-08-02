@@ -22,6 +22,7 @@ use App\Http\Resources\Admin\Customer\CustomerListResource;
 use App\Http\Resources\Admin\Customer\CustomerLookupResource;
 use App\Http\Resources\Admin\Customer\CustomerResource;
 use App\Http\Resources\Admin\Customer\DocumentResource;
+use App\Models\Customer;
 use App\Services\Account\AccountService;
 use App\Services\Customer\CustomerService;
 use App\Services\Customer\DocumentService;
@@ -56,6 +57,16 @@ class CustomerController extends Controller
         return $this->success(
             message: 'Customers retrieved successfully.',
             data: CustomerListResource::collection($customers),
+            meta: [
+                // Global counts, independent of the current page/filters.
+                'statistics' => [
+                    'total_customers' => Customer::query()->count(),
+                    'total_active'    => Customer::query()->where('status', 'active')->count(),
+                    'total_pending'   => Customer::query()->where('status', 'pending')->count(),
+                    'total_inactive'  => Customer::query()->where('status', 'inactive')->count(),
+                    'total_closed'    => Customer::query()->where('status', 'closed')->count(),
+                ],
+            ],
         );
     }
 

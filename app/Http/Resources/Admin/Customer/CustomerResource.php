@@ -109,7 +109,9 @@ class CustomerResource extends JsonResource
             ),
 
             'business'    => $this->when(in_array($this->customer_type, CustomerType::businessLike(), true), fn () => new BusinessResource($this->whenLoaded('business'))),
-            'directors'   => $this->when($this->customer_type === CustomerType::CORPORATE->value, fn () => DirectorResource::collection($this->whenLoaded('directors'))),
+            // Directors aren't tied to a "corporate" type anymore — any business-like
+            // customer may or may not have director rows on file.
+            'directors'   => $this->when(in_array($this->customer_type, CustomerType::businessLike(), true), fn () => DirectorResource::collection($this->whenLoaded('directors'))),
             'signatories' => $this->when(in_array($this->customer_type, CustomerType::businessLike(), true), fn () => SignatoryResource::collection($this->whenLoaded('signatories'))),
         ];
     }

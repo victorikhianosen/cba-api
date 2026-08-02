@@ -8,6 +8,7 @@ use App\Enums\Posting\PostingStatus;
 use App\Enums\Transaction\FinancialTransactionStatus;
 use App\Models\Account;
 use App\Models\FinancialTransaction;
+use App\Models\GeneralLedger;
 use App\Models\Posting;
 use App\Models\User;
 use App\Services\Account\AccountPostingService;
@@ -18,12 +19,14 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\LazyCollection;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Spatie\SimpleExcel\SimpleExcelReader;
 
 // Posting → approval → ledger-write flow for all four combinations (GL↔GL, account↔account, account↔GL, GL↔account). AccountPostingService/GeneralLedgerPostingService remain the only places allowed to touch a balance — this class just resolves which one to call.
 class PostingService
@@ -129,6 +132,236 @@ class PostingService
         );
 
         return $posting;
+    }
+
+    // Column headers for the bulk-posting template/upload. Identifiers are human-friendly
+    // (account number / gl code), not raw ids — resolved to source_id/destination_id here,
+    // same as the manual create-posting form resolves a picked account/GL to its id.
+    public const BULK_IMPORT_COLUMNS = [
+        'source_type', 'source_identifier', 'destination_type', 'destination_identifier',
+        'amount', 'module', 'transaction_type', 'remarks',
+    ];
+
+    // Human-readable column headers for the downloadable template — the raw snake_case
+    // BULK_IMPORT_COLUMNS keys are an internal implementation detail and shouldn't be shown
+    // to admins filling in the sheet. SimpleExcelReader::headersToSnakeCase() (used in
+    // bulkImport() below) converts these labels straight back to the internal keys on
+    // upload, so this is purely cosmetic — no change needed on the read side.
+    private const BULK_IMPORT_COLUMN_LABELS = [
+        'source_type'            => 'Source Type',
+        'source_identifier'      => 'Source Identifier',
+        'destination_type'       => 'Destination Type',
+        'destination_identifier' => 'Destination Identifier',
+        'amount'                 => 'Amount',
+        'module'                 => 'Module',
+        'transaction_type'       => 'Transaction Type',
+        'remarks'                => 'Remarks',
+    ];
+
+    // Friendly values shown in the downloaded template for source_type/destination_type,
+    // and accepted back on upload (case-insensitively) alongside the raw internal values —
+    // see normalizePartyType() below.
+    private const PARTY_TYPE_LEDGER   = 'Ledger';
+    private const PARTY_TYPE_CUSTOMER = 'Customer';
+
+    /** One example row per posting type (GL to GL, Customer to GL, GL to Customer, Customer
+     *  to Customer), so the template demonstrates every combination an admin can create.
+     *  @return array<int, array<string, mixed>> */
+    public function bulkImportTemplateRows(): array
+    {
+        $rows = [
+            [
+                'source_type'             => self::PARTY_TYPE_LEDGER,
+                'source_identifier'       => '10000001',
+                'destination_type'        => self::PARTY_TYPE_LEDGER,
+                'destination_identifier'  => '10000002',
+                'amount'                  => '10000.00',
+                'module'                  => 'postings',
+                'transaction_type'        => 'bulk_gl_transfer',
+                'remarks'                 => 'Sample GL to GL transfer',
+            ],
+            [
+                'source_type'             => self::PARTY_TYPE_CUSTOMER,
+                'source_identifier'       => '1000000001',
+                'destination_type'        => self::PARTY_TYPE_LEDGER,
+                'destination_identifier'  => '10000001',
+                'amount'                  => '7500.00',
+                'module'                  => 'postings',
+                'transaction_type'        => 'bulk_debit',
+                'remarks'                 => 'Sample customer to GL debit',
+            ],
+            [
+                'source_type'             => self::PARTY_TYPE_LEDGER,
+                'source_identifier'       => '10000001',
+                'destination_type'        => self::PARTY_TYPE_CUSTOMER,
+                'destination_identifier'  => '1000000001',
+                'amount'                  => '5000.00',
+                'module'                  => 'postings',
+                'transaction_type'        => 'bulk_credit',
+                'remarks'                 => 'Sample GL to customer credit',
+            ],
+            [
+                'source_type'             => self::PARTY_TYPE_CUSTOMER,
+                'source_identifier'       => '1000000001',
+                'destination_type'        => self::PARTY_TYPE_CUSTOMER,
+                'destination_identifier'  => '1000000002',
+                'amount'                  => '2500.00',
+                'module'                  => 'postings',
+                'transaction_type'        => 'bulk_transfer',
+                'remarks'                 => 'Sample customer to customer transfer',
+            ],
+        ];
+
+        return array_map(fn (array $row) => $this->relabelBulkImportRow($row), $rows);
+    }
+
+    // Accepts either the raw internal value ("account"/"general_ledger") or the friendly
+    // template value ("Customer"/"Ledger"), case-insensitively, and normalizes to the
+    // internal value that source_type/destination_type are actually stored as.
+    private function normalizePartyType(string $value): string
+    {
+        return match (strtolower(trim($value))) {
+            'ledger', 'gl', 'general_ledger', 'general ledger' => 'general_ledger',
+            'customer', 'account'                              => 'account',
+            default                                             => strtolower(trim($value)),
+        };
+    }
+
+    // Swaps a row's internal snake_case keys for the human-readable headers an admin should
+    // actually see in the downloaded template (see BULK_IMPORT_COLUMN_LABELS above).
+    private function relabelBulkImportRow(array $row): array
+    {
+        $labelled = [];
+
+        foreach ($row as $column => $value) {
+            $labelled[self::BULK_IMPORT_COLUMN_LABELS[$column] ?? $column] = $value;
+        }
+
+        return $labelled;
+    }
+
+    // The "GL Reference" sheet's rows — every active GL's code/name/currency/classification/
+    // balance, so whoever fills in the Postings sheet can look up a valid gl_code without
+    // leaving the workbook. Cursor-based since a large chart of accounts shouldn't be loaded
+    // into memory all at once.
+    public function glReferenceRows(): LazyCollection
+    {
+        return GeneralLedger::query()
+            ->with('currency:id,code')
+            ->where('status', 'active')
+            ->orderBy('gl_code')
+            ->cursor()
+            ->map(fn (GeneralLedger $gl) => [
+                'GL Code'        => $gl->gl_code,
+                'Name'           => $gl->name,
+                'Currency'       => $gl->currency?->code,
+                'Classification' => $gl->classification,
+                'Balance'        => (string) $gl->balance,
+            ]);
+    }
+
+    /**
+     * Parses an uploaded spreadsheet's "Postings" sheet and creates one pending posting per
+     * row, isolating each row in its own try/catch (same pattern as bulkApprove()) so a bad
+     * row (unknown account number, insufficient funds, whatever) never blocks or rolls back
+     * the rest of the batch. Every posting still lands as PENDING — this only automates data
+     * entry, not the maker-checker approval step itself; a different admin still has to
+     * approve each one (or use bulkApprove()) same as a manually created posting.
+     *
+     * @return array{created: int, failed: int, errors: array<int, array{row: int, reason: string}>}
+     */
+    public function bulkImport(UploadedFile $file): array
+    {
+        $created = 0;
+        $errors  = [];
+
+        $reader = SimpleExcelReader::create($file->getRealPath(), $file->getClientOriginalExtension());
+
+        $rows = ($reader->hasSheet('Postings') ? $reader->fromSheetName('Postings') : $reader)
+            ->headersToSnakeCase()
+            ->getRows();
+
+        $rowNumber = 1; // Row 1 is the header row, so the first data row is row 2.
+
+        foreach ($rows as $row) {
+            $rowNumber++;
+
+            try {
+                $data = $this->mapBulkImportRow($row);
+                $this->create($data);
+                $created++;
+            } catch (ValidationException $e) {
+                $errors[] = ['row' => $rowNumber, 'reason' => implode(' ', collect($e->errors())->flatten()->all())];
+            } catch (\Throwable $e) {
+                report($e);
+                $errors[] = ['row' => $rowNumber, 'reason' => 'This row could not be processed — please check its values and try again.'];
+            }
+        }
+
+        return ['created' => $created, 'failed' => count($errors), 'errors' => $errors];
+    }
+
+    /** @param array<string, mixed> $row */
+    private function mapBulkImportRow(array $row): array
+    {
+        $sourceType      = $this->normalizePartyType((string) ($row['source_type'] ?? ''));
+        $destinationType = $this->normalizePartyType((string) ($row['destination_type'] ?? ''));
+
+        if (! in_array($sourceType, ['account', 'general_ledger'], true)) {
+            throw ValidationException::withMessages(['source_type' => ["'{$row['source_type']}' must be 'Customer' or 'Ledger'."]]);
+        }
+
+        if (! in_array($destinationType, ['account', 'general_ledger'], true)) {
+            throw ValidationException::withMessages(['destination_type' => ["'{$row['destination_type']}' must be 'Customer' or 'Ledger'."]]);
+        }
+
+        $amount = trim((string) ($row['amount'] ?? ''));
+
+        if ($amount === '' || bccomp($amount, '0', 6) <= 0) {
+            throw ValidationException::withMessages(['amount' => ['Amount must be greater than zero.']]);
+        }
+
+        $remarks = trim((string) ($row['remarks'] ?? ''));
+
+        if ($remarks === '') {
+            throw ValidationException::withMessages(['remarks' => ['Remarks is required.']]);
+        }
+
+        return [
+            'source_type'      => $sourceType,
+            'source_id'        => $this->resolvePartyId($sourceType, trim((string) ($row['source_identifier'] ?? ''))),
+            'destination_type' => $destinationType,
+            'destination_id'   => $this->resolvePartyId($destinationType, trim((string) ($row['destination_identifier'] ?? ''))),
+            'amount'           => $amount,
+            'module'           => trim((string) ($row['module'] ?? '')) ?: 'postings',
+            'transaction_type' => trim((string) ($row['transaction_type'] ?? '')) ?: null,
+            'remarks'          => $remarks,
+        ];
+    }
+
+    private function resolvePartyId(string $type, string $identifier): int
+    {
+        if ($identifier === '') {
+            throw ValidationException::withMessages(['identifier' => ['An account number or GL code is required for every party.']]);
+        }
+
+        if ($type === 'account') {
+            $account = Account::where('account_number', $identifier)->first();
+
+            if (! $account) {
+                throw ValidationException::withMessages(['source_identifier' => ["No account found with account number '{$identifier}'."]]);
+            }
+
+            return $account->id;
+        }
+
+        $gl = GeneralLedger::where('gl_code', $identifier)->first();
+
+        if (! $gl) {
+            throw ValidationException::withMessages(['source_identifier' => ["No GL found with code '{$identifier}'."]]);
+        }
+
+        return $gl->id;
     }
 
     // The atomic core — verify, debit, credit, record, all in one DB::transaction, so any failure rolls back everything and leaves the posting exactly as pending as before.

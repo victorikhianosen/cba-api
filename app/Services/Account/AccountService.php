@@ -21,12 +21,11 @@ use Illuminate\Validation\ValidationException;
 class AccountService
 {
     // Account product each customer_type is defaulted into on approval.
+    // 'minor' is not a separate customer_type — a minor is just an individual with
+    // guardian_id set (see StoreCustomerRequest), so it needs no entry of its own here.
     private const PRODUCT_TYPE_BY_CUSTOMER_TYPE = [
         'individual' => 'savings',
-        'minor'      => 'savings',
         'business'   => 'current',
-        'government' => 'current',
-        'corporate'  => 'current',
     ];
 
     // Leading digit of the 10-digit account number, by product type — savings run 1000000001+, current run 2000000001+, domiciliary (dollar) run 3000000001+.
@@ -250,14 +249,15 @@ class AccountService
         return $account;
     }
 
-    // Individuals carry their own BVN. Business/government have no directors — theirs lives on the
-    // signatory. Corporate customers have both — either a director or a signatory with a BVN qualifies.
+    // Individuals carry their own BVN. Business-like customers have no BVN of their own —
+    // either a director (if any were added — optional, not tied to a separate "corporate"
+    // type) or a signatory with a BVN qualifies.
     private function isEligibleForAutoOpening(Customer $customer): bool
     {
         $hasBvn = match (true) {
-            $customer->customer_type === CustomerType::CORPORATE->value => $customer->directors()->whereNotNull('bvn')->exists()
+            in_array($customer->customer_type, CustomerType::businessLike(), true) =>
+                $customer->directors()->whereNotNull('bvn')->exists()
                 || $customer->signatories()->whereNotNull('bvn')->exists(),
-            in_array($customer->customer_type, CustomerType::businessLike(), true) => $customer->signatories()->whereNotNull('bvn')->exists(),
             default => ! empty($customer->bvn),
         };
 

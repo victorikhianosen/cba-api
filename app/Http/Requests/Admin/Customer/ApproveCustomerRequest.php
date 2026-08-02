@@ -26,8 +26,9 @@ class ApproveCustomerRequest extends FormRequest
         ];
     }
 
-    // Individual/minor customers must be assigned a savings product; every business-like
-    // type (business, government, corporate) must be assigned a current product.
+    // Individual customers (including minors) must be assigned a savings product; every
+    // business-like type (business, including government via legal_form) must be assigned
+    // a current product.
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator) {
