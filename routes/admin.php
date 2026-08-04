@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\AuditTrailController;
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\BankController;
 use App\Http\Controllers\Admin\BranchController;
+use App\Http\Controllers\Admin\BvnController;
 use App\Http\Controllers\Admin\CommunicationController;
 use App\Http\Controllers\Admin\CurrencyController;
 use App\Http\Controllers\Admin\CustomerController;
@@ -22,10 +23,13 @@ use App\Http\Controllers\Admin\LoanProductController;
 use App\Http\Controllers\Admin\PermissionController;
 use App\Http\Controllers\Admin\PostingController;
 use App\Http\Controllers\Admin\RoleController;
+use App\Http\Controllers\Admin\CashierSessionController;
 use App\Http\Controllers\Admin\StatusController;
+use App\Http\Controllers\Admin\TellerController;
 use App\Http\Controllers\Admin\TransactionController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UserJourneyController;
+use App\Http\Controllers\Admin\VaultController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->controller(AuthController::class)->group(function () {
@@ -138,6 +142,46 @@ Route::middleware(['user'])->group(function () {
         Route::post('{id}/icon', 'uploadIcon')->middleware('permission:update_investment_products');
     });
 
+    Route::prefix('vaults')->controller(VaultController::class)->group(function () {
+        Route::get('/', 'index')->middleware('permission:view_vaults');
+        Route::post('/', 'store')->middleware('permission:create_vaults');
+        Route::get('{id}', 'show')->middleware('permission:view_vaults');
+        Route::put('{id}', 'update')->middleware('permission:update_vaults');
+        Route::post('{id}/approve', 'approve')->middleware('permission:approve_vaults');
+        Route::post('{id}/status', 'updateStatus')->middleware('permission:update_vaults');
+    });
+
+    Route::prefix('tellers')->controller(TellerController::class)->group(function () {
+        Route::get('/', 'index')->middleware('permission:view_tellers');
+        Route::post('/', 'store')->middleware('permission:create_tellers');
+        Route::get('{id}', 'show')->middleware('permission:view_tellers');
+        Route::put('{id}', 'update')->middleware('permission:update_tellers');
+        Route::post('{id}/approve', 'approve')->middleware('permission:approve_tellers');
+        Route::post('{id}/status', 'updateStatus')->middleware('permission:update_tellers');
+        Route::post('{id}/assign', 'assign')->middleware('permission:update_tellers');
+        Route::post('{id}/unassign', 'unassign')->middleware('permission:update_tellers');
+    });
+
+    Route::prefix('cashier-sessions')->controller(CashierSessionController::class)->group(function () {
+        Route::get('/', 'index')->middleware('permission:view_tellers');
+        Route::get('mine', 'mine')->middleware('permission:operate_teller');
+        Route::get('withdrawals/pending', 'pendingWithdrawals')->middleware('permission:approve_teller_withdrawal');
+        Route::post('withdrawals/{transactionId}/approve', 'approveWithdrawal')->middleware('permission:approve_teller_withdrawal');
+        Route::post('withdrawals/{transactionId}/reject', 'rejectWithdrawal')->middleware('permission:approve_teller_withdrawal');
+        Route::get('{id}', 'show')->middleware('permission:view_tellers');
+        Route::post('open', 'open')->middleware('permission:operate_teller');
+        Route::post('{id}/buy', 'buy')->middleware('permission:operate_teller');
+        Route::post('{id}/sell', 'sell')->middleware('permission:operate_teller');
+        Route::post('{id}/deposit', 'deposit')->middleware('permission:operate_teller');
+        Route::post('{id}/withdraw', 'withdraw')->middleware('permission:operate_teller');
+        Route::post('{id}/close', 'close')->middleware('permission:operate_teller');
+        Route::post('{id}/reconcile', 'reconcile')->middleware('permission:operate_teller');
+        Route::post('{id}/approve-variance', 'approveVariance')->middleware('permission:approve_cashier_variance');
+        Route::post('{id}/reject-variance', 'rejectVariance')->middleware('permission:approve_cashier_variance');
+    });
+
+    Route::get('bvn/lookup', [BvnController::class, 'lookup'])->middleware('permission:create_customers');
+
     Route::prefix('customers')->controller(CustomerController::class)->group(function () {
         Route::get('/', 'index')->middleware('permission:view_customers');
         Route::post('/', 'store')->middleware('permission:create_customers');
@@ -184,6 +228,8 @@ Route::middleware(['user'])->group(function () {
         Route::get('{id}/transactions', 'transactions')->middleware('permission:view_investments');
         Route::get('{id}/schedule', 'schedule')->middleware('permission:view_investments');
         Route::get('{id}/schedule/previous', 'previousSchedule')->middleware('permission:view_investments');
+        Route::get('{id}/letter', 'letterPdf')->middleware('permission:view_investments');
+        Route::post('{id}/letter/email', 'emailLetter')->middleware('permission:view_investments');
         Route::get('{id}/approval-preview', 'previewApproval')->middleware('permission:approve_investments');
         Route::post('{id}/approve', 'approve')->middleware('permission:approve_investments');
         Route::post('{id}/reject', 'reject')->middleware('permission:approve_investments');

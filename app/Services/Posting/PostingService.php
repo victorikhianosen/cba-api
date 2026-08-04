@@ -601,7 +601,8 @@ class PostingService
     // origin — investments-module postings (funding, top-up) get "IVT", everything else
     // keeps the existing generic "PST" prefix.
     private const MODULE_REFERENCE_PREFIXES = [
-        'investments' => 'IVT',
+        'investments'      => 'IVT',
+        'teller_management' => 'TEL',
     ];
 
     private function referencePrefixFor(?string $module): string

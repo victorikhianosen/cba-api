@@ -12,12 +12,15 @@ use App\Http\Requests\Admin\Investment\StoreInvestmentRequest;
 use App\Http\Resources\Admin\Investment\InvestmentResource;
 use App\Http\Resources\Admin\Investment\InvestmentScheduleResource;
 use App\Http\Resources\Admin\Investment\InvestmentTransactionResource;
+use App\Mail\CoreBankMail;
 use App\Models\Investment;
 use App\Services\Investment\InvestmentService;
 use App\Traits\ApiResponse;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
 class InvestmentController extends Controller
@@ -467,6 +470,80 @@ class InvestmentController extends Controller
 
             return $this->error(
                 message: 'We are unable to process your request please try again.',
+                responseCode: '500',
+                statusCode: 500,
+            );
+        }
+    }
+
+    public function letterPdf(int $id)
+    {
+        try {
+            $investment = $this->investments->find($id);
+            $data       = $this->investments->letterData($investment);
+
+            return Pdf::loadView('investments.letter', $data)
+                ->setPaper('a4', 'portrait')
+                ->download("investment-letter-{$investment->account_number}.pdf");
+        } catch (ModelNotFoundException $e) {
+            return $this->error(
+                message: 'The requested investment was not found.',
+                responseCode: '404',
+                statusCode: 404,
+            );
+        }
+    }
+
+    public function emailLetter(int $id): JsonResponse
+    {
+        try {
+            $investment = $this->investments->find($id);
+            $customer   = $investment->customer;
+
+            if (! $customer?->email) {
+                return $this->error(
+                    message: 'This customer does not have an email address on file.',
+                    responseCode: '101',
+                    statusCode: 422,
+                );
+            }
+
+            $data = $this->investments->letterData($investment);
+            $pdf  = Pdf::loadView('investments.letter', $data)->setPaper('a4', 'portrait');
+
+            $tempPath = storage_path('app/temp/investment-letter-' . $investment->account_number . '-' . uniqid() . '.pdf');
+            if (! is_dir(dirname($tempPath))) {
+                mkdir(dirname($tempPath), 0755, true);
+            }
+            $pdf->save($tempPath);
+
+            try {
+                // sendNow(), not send() — CoreBankMail implements ShouldQueue, and the
+                // attachment path is deleted right after this call, so the mail must go
+                // out synchronously rather than be picked up later by a queue worker.
+                Mail::to($customer->email)->sendNow(new CoreBankMail(
+                    subjectLine: 'Your Investment Certificate — ' . $investment->account_number,
+                    content: "Dear {$data['customerName']},<br><br>Please find attached your investment certificate for account {$investment->account_number}.",
+                    files: [$tempPath],
+                ));
+            } finally {
+                @unlink($tempPath);
+            }
+
+            return $this->success(
+                message: 'Investment letter sent to customer successfully.',
+            );
+        } catch (ModelNotFoundException $e) {
+            return $this->error(
+                message: 'The requested investment was not found.',
+                responseCode: '404',
+                statusCode: 404,
+            );
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->error(
+                message: 'We are unable to send the investment letter. Please try again.',
                 responseCode: '500',
                 statusCode: 500,
             );

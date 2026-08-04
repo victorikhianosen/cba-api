@@ -130,6 +130,18 @@ class CustomerService
         }
         $data['status']        = 'pending';
 
+        // Credentials are auto-generated at onboarding rather than collected on the form:
+        // username from the customer's name, pin is a fixed default, password is the BVN.
+        if (empty($data['username'])) {
+            $data['username'] = $this->generateUniqueUsername($data['first_name'] ?? null, $data['last_name'] ?? null, $data['business_name'] ?? null);
+        }
+        if (empty($data['pin'])) {
+            $data['pin'] = '0000';
+        }
+        if (empty($data['password']) && ! empty($data['bvn'])) {
+            $data['password'] = $data['bvn'];
+        }
+
         foreach (self::HASHABLE_FIELDS as $field) {
             if (! empty($data[$field])) {
                 $data[$field] = bcrypt($data[$field]);
@@ -1006,5 +1018,24 @@ class CustomerService
         } while (Customer::where('referral_code', $code)->exists());
 
         return $code;
+    }
+
+    private function generateUniqueUsername(?string $firstName, ?string $lastName, ?string $businessName): string
+    {
+        $base = Str::slug(trim(($firstName ?? '') . ' ' . ($lastName ?? '')), '');
+
+        if ($base === '') {
+            $base = Str::slug($businessName ?? 'customer', '');
+        }
+
+        $username = $base;
+        $suffix   = 1;
+
+        while (Customer::where('username', $username)->exists()) {
+            $username = $base . $suffix;
+            $suffix++;
+        }
+
+        return $username;
     }
 }

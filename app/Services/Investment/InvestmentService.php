@@ -59,6 +59,40 @@ class InvestmentService
         return Investment::with(['customer', 'investmentProduct', 'sourceAccount', 'schedules', 'transactions', 'pendingTopupRequestedBy'])->findOrFail($id);
     }
 
+    // Shared by the print/download endpoint and the email endpoint so both always
+    // render the exact same letter content.
+    public function letterData(Investment $investment): array
+    {
+        $investment->loadMissing(['customer', 'investmentProduct', 'sourceAccount', 'currency']);
+
+        $customer = $investment->customer;
+
+        return [
+            'companyName'           => config('app.name'),
+            'companyAddress'        => config('app.address', ''),
+            'issuedDate'            => now()->format('F j, Y'),
+            'generatedAt'           => now()->format('F j, Y g:i A'),
+            'reference'             => 'INV-LTR-' . $investment->account_number,
+            'customerName'          => trim("{$customer?->first_name} {$customer?->last_name}") ?: ($customer?->business_name ?? ''),
+            'customerAddress'       => null,
+            'cifNumber'             => $customer?->cif_number,
+            'accountNumber'         => $investment->account_number,
+            'productName'           => $investment->investmentProduct?->name,
+            'currencySymbol'        => $investment->currency?->symbol ?? '',
+            'principalAmount'       => number_format((float) $investment->principal_amount, 2),
+            'currentPrincipal'      => number_format((float) $investment->current_principal, 2),
+            'interestRate'          => number_format((float) $investment->interest_rate, 2),
+            'interestPostingPeriod' => ucfirst((string) $investment->interest_posting_period),
+            'tenure'                => $investment->tenure,
+            'startDate'             => $investment->start_date?->format('F j, Y'),
+            'maturityDate'          => $investment->maturity_date?->format('F j, Y'),
+            'maturityValue'         => number_format((float) $investment->maturity_value, 2),
+            'autoRenew'             => $investment->auto_renew ? 'Yes' : 'No',
+            'sourceAccountNumber'   => $investment->sourceAccount?->account_number,
+            'status'                => ucfirst((string) $investment->status),
+        ];
+    }
+
     public function transactionsFor(int $investmentId, int $perPage = 20): LengthAwarePaginator
     {
         $investment = Investment::findOrFail($investmentId);

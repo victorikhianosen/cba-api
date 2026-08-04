@@ -31,6 +31,11 @@ class RolePermissionSeeder extends Seeder
         'view_audit_trails',
         'view_user_journeys',
         'view_communications', 'create_communications',
+        'view_vaults', 'create_vaults', 'update_vaults', 'delete_vaults', 'approve_vaults',
+        'view_tellers', 'create_tellers', 'update_tellers', 'delete_tellers', 'approve_tellers',
+        'operate_teller',              // cashier-facing: open/close/buy/sell/deposit/request-withdrawal — granted to the cashier role
+        'approve_cashier_variance',    // second-admin sign-off on an out-of-tolerance teller reconciliation — NOT granted to cashier
+        'approve_teller_withdrawal',   // second-admin sign-off on a customer cash withdrawal — NOT granted to cashier
     ];
 
     public function run(): void
@@ -45,5 +50,10 @@ class RolePermissionSeeder extends Seeder
         // super_admin gets every permission that exists (synced, not just granted) plus an unconditional Gate::before bypass in AppServiceProvider.
         $superAdmin = Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'user']);
         $superAdmin->syncPermissions($permissions);
+
+        // Cashiers only operate their own teller day-to-day — they don't manage the
+        // vault/teller catalog and can't approve their own (or anyone else's) variance.
+        $cashier = Role::firstOrCreate(['name' => 'cashier', 'guard_name' => 'user']);
+        $cashier->givePermissionTo(['operate_teller', 'view_tellers']);
     }
 }
