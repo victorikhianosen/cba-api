@@ -135,6 +135,7 @@ class AccountService
 
             return [
                 'date'      => $transaction->posting_date?->format('d M Y'),
+                'time'      => $transaction->posting_date?->format('g:i A'),
                 'reference' => $transaction->reference ?? $transaction->transaction_reference,
                 'narration' => $transaction->narration ?: ucfirst((string) $transaction->transaction_type),
                 'debit'     => $isDebit ? number_format($amount, 2) : null,

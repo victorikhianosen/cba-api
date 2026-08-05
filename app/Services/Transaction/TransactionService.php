@@ -23,7 +23,7 @@ class TransactionService
 
     public function find(int $id): Transaction
     {
-        return Transaction::with(['account', 'customer', 'currency'])->findOrFail($id);
+        return Transaction::with(['account', 'customer', 'currency', 'createdBy'])->findOrFail($id);
     }
 
     // A cursor, not a Collection — never loads more than one row into memory at a time,

@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\CommunicationController;
 use App\Http\Controllers\Admin\CurrencyController;
 use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\FinancialTransactionController;
+use App\Http\Controllers\Admin\FundGlController;
 use App\Http\Controllers\Admin\GeneralLedgerController;
 use App\Http\Controllers\Admin\InvestmentController;
 use App\Http\Controllers\Admin\AccountStatementTemplateController;
@@ -169,7 +170,7 @@ Route::middleware(['user'])->group(function () {
         Route::post('/', 'store')->middleware('permission:create_vaults');
         Route::get('{id}', 'show')->middleware('permission:view_vaults');
         Route::put('{id}', 'update')->middleware('permission:update_vaults');
-        Route::post('{id}/approve', 'approve')->middleware('permission:approve_vaults');
+        Route::post('{id}/approve', 'approve')->middleware(['permission:approve_vaults', 'totp']);
         Route::post('{id}/status', 'updateStatus')->middleware('permission:update_vaults');
     });
 
@@ -178,7 +179,7 @@ Route::middleware(['user'])->group(function () {
         Route::post('/', 'store')->middleware('permission:create_tellers');
         Route::get('{id}', 'show')->middleware('permission:view_tellers');
         Route::put('{id}', 'update')->middleware('permission:update_tellers');
-        Route::post('{id}/approve', 'approve')->middleware('permission:approve_tellers');
+        Route::post('{id}/approve', 'approve')->middleware(['permission:approve_tellers', 'totp']);
         Route::post('{id}/status', 'updateStatus')->middleware('permission:update_tellers');
         Route::post('{id}/assign', 'assign')->middleware('permission:update_tellers');
         Route::post('{id}/unassign', 'unassign')->middleware('permission:update_tellers');
@@ -339,6 +340,15 @@ Route::middleware(['user'])->group(function () {
         Route::get('{id}', 'show')->middleware('permission:view_postings');
         Route::post('{id}/approve', 'approve')->middleware(['permission:approve_postings', 'totp']);
         Route::post('{id}/reject', 'reject')->middleware('permission:approve_postings');
+    });
+
+    Route::prefix('fund-gls')->controller(FundGlController::class)->group(function () {
+        Route::get('/', 'index')->middleware('permission:view_fund_gls');
+        Route::post('/', 'store')->middleware('permission:create_fund_gls');
+        Route::get('{id}', 'show')->middleware('permission:view_fund_gls');
+        Route::post('{id}/review', 'review')->middleware(['permission:review_fund_gls', 'totp']);
+        Route::post('{id}/approve', 'approve')->middleware(['permission:approve_fund_gls', 'totp']);
+        Route::post('{id}/reject', 'reject')->middleware('permission:review_fund_gls');
     });
 
     Route::prefix('audit-trails')->controller(AuditTrailController::class)->group(function () {

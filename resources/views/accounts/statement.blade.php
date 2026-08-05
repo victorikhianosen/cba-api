@@ -19,12 +19,17 @@
         table.summary .label { background: #f1f5f9; font-size: 9px; font-weight: bold; color: #64748b; text-transform: uppercase; }
         table.summary .value { font-size: 12px; font-weight: bold; color: #0f172a; }
 
-        table.ledger { width: 100%; border-collapse: collapse; }
-        table.ledger th, table.ledger td { border: 1px solid #cbd5e1; padding: 5px 7px; font-size: 9.5px; text-align: left; }
+        table.ledger { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        table.ledger th, table.ledger td { border: 1px solid #cbd5e1; padding: 5px 7px; font-size: 9.5px; text-align: left; word-wrap: break-word; }
         table.ledger th { background: #1e3a8a; color: #fff; text-transform: uppercase; font-size: 8.5px; letter-spacing: 0.3px; }
         table.ledger td.amount, table.ledger th.amount { text-align: right; }
         table.ledger tr:nth-child(even) td { background: #f8fafc; }
         table.ledger .opening td { background: #f1f5f9; font-weight: bold; }
+        table.ledger .col-date { width: 12%; white-space: nowrap; }
+        table.ledger .col-date .time { display: block; color: #64748b; font-size: 8.5px; margin-top: 1px; }
+        table.ledger .col-reference { width: 17%; }
+        table.ledger .col-narration { width: 31%; }
+        table.ledger .col-debit, table.ledger .col-credit, table.ledger .col-balance { width: 13.33%; }
 
         .footer { margin-top: 18px; border-top: 1px solid #cbd5e1; padding-top: 6px; font-size: 8.5px; color: #94a3b8; text-align: center; }
     </style>
@@ -72,12 +77,12 @@
     <table class="ledger">
         <thead>
             <tr>
-                <th>Date</th>
-                <th>Reference</th>
-                <th>Narration</th>
-                <th class="amount">Debit</th>
-                <th class="amount">Credit</th>
-                <th class="amount">Balance</th>
+                <th class="col-date">Date</th>
+                <th class="col-reference">Reference</th>
+                <th class="col-narration">Narration</th>
+                <th class="amount col-debit">Debit</th>
+                <th class="amount col-credit">Credit</th>
+                <th class="amount col-balance">Balance</th>
             </tr>
         </thead>
         <tbody>
@@ -87,7 +92,7 @@
             </tr>
             @forelse($transactions as $row)
                 <tr>
-                    <td>{{ $row['date'] }}</td>
+                    <td class="col-date">{{ $row['date'] }}<span class="time">{{ $row['time'] }}</span></td>
                     <td>{{ $row['reference'] }}</td>
                     <td>{{ $row['narration'] }}</td>
                     <td class="amount">{{ $row['debit'] ? $currencySymbol . $row['debit'] : '' }}</td>

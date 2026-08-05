@@ -64,6 +64,13 @@ class TransactionResource extends JsonResource
             'status'          => $this->status,
             'narration'       => $this->narration,
             'metadata'        => $this->metadata,
+            'created_by'      => $this->created_by,
+            'creator'         => $this->whenLoaded('createdBy', fn () => $this->createdBy ? [
+                'id'         => $this->createdBy->id,
+                'first_name' => $this->createdBy->first_name,
+                'last_name'  => $this->createdBy->last_name,
+                'username'   => $this->createdBy->username,
+            ] : null),
             'created_at'      => $this->created_at,
         ];
     }
