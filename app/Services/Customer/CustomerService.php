@@ -11,6 +11,8 @@ use App\Models\AccountProduct;
 use App\Models\Customer;
 use App\Services\Account\AccountService;
 use App\Services\Audit\AuditService;
+use App\Services\Communication\CommunicationService;
+use App\Services\Notification\NotificationService;
 use App\Services\Storage\FileStorageService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -36,35 +38,38 @@ class CustomerService
         private AccountService $accounts,
         private DocumentService $documents,
         private FileStorageService $files,
+        private NotificationService $notifications,
+        private CommunicationService $message,
     ) {}
 
-    public function list(int $perPage = 15, ?string $search = null, ?string $status = null): LengthAwarePaginator
+    public function list(int $perPage = 15, ?string $search = null, ?string $status = null, ?string $customerType = null): LengthAwarePaginator
     {
-        return $this->filtered($search, $status)
+        return $this->filtered($search, $status, $customerType)
             ->with('accounts:id,customer_id,account_number,status')
             ->latest()
             ->paginate($perPage)
             ->withQueryString();
     }
 
-    public function cursorForExport(?string $search = null, ?string $status = null): LazyCollection
+    public function cursorForExport(?string $search = null, ?string $status = null, ?string $customerType = null): LazyCollection
     {
-        return $this->filtered($search, $status)
+        return $this->filtered($search, $status, $customerType)
             ->with(['branch', 'accountOfficer'])
             ->orderBy('created_at')
             ->orderBy('id')
             ->cursor();
     }
 
-    public function countForFilter(?string $search = null, ?string $status = null): int
+    public function countForFilter(?string $search = null, ?string $status = null, ?string $customerType = null): int
     {
-        return $this->filtered($search, $status)->count();
+        return $this->filtered($search, $status, $customerType)->count();
     }
 
-    private function filtered(?string $search = null, ?string $status = null): Builder
+    private function filtered(?string $search = null, ?string $status = null, ?string $customerType = null): Builder
     {
         return Customer::query()
             ->when($status, fn ($query, $status) => $query->where('status', $status))
+            ->when($customerType, fn ($query, $customerType) => $query->where('customer_type', $customerType))
             ->when($search, function ($query, $search) {
                 $query->where(function ($query) use ($search) {
                     $query->where('cif_number', 'like', "%{$search}%")
@@ -219,6 +224,14 @@ class CustomerService
                 'customer_type' => $customer->customer_type,
             ],
             description: "Customer '{$this->displayName($customer)}' ({$customer->cif_number}) was onboarded by '{$actor?->username}' and is pending approval.",
+        );
+
+        $this->notifications->notifyPermission(
+            'update_customers',
+            'customer',
+            $customer->id,
+            'New customer pending approval',
+            "Customer '{$this->displayName($customer)}' ({$customer->cif_number}) is awaiting your approval.",
         );
 
         return $customer;
@@ -659,8 +672,19 @@ class CustomerService
             unset($data[$field]);
         }
 
+        // Mirrors create() — the customer's own business_name column (what account naming
+        // and search key off) is kept in sync with the business block's business_name.
+        if ($business && array_key_exists('business_name', $business)) {
+            $data['business_name'] = $business['business_name'];
+        }
+
         DB::transaction(function () use ($customer, $data, $actor, $profilePicture, $utilityBill, $validId, $businessLogo, $address, $nextOfKin, $business, $directors, $signatories) {
             $customer->update($data);
+
+            // Keep every account's account_name in step with the customer's own
+            // name/business_name — account_name is otherwise only ever set once,
+            // at account-opening time.
+            $this->accounts->syncAccountNamesForCustomer($customer);
 
             $documentFiles = [
                 'profile_picture' => $profilePicture,
@@ -844,6 +868,14 @@ class CustomerService
             description: "Customer '{$this->displayName($customer)}' ({$customer->cif_number}) was approved by '{$actor?->username}'.",
         );
 
+        $this->notifications->notifyUser(
+            $customer->createdBy,
+            'customer',
+            $customer->id,
+            'Customer approved',
+            "Customer '{$this->displayName($customer)}' ({$customer->cif_number}) was approved.",
+        );
+
         return $customer;
     }
 
@@ -877,6 +909,14 @@ class CustomerService
             before: ['status' => 'pending'],
             after: ['status' => $customer->status, 'rejection_reason' => $reason],
             description: "Customer '{$this->displayName($customer)}' ({$customer->cif_number}) was rejected by '{$actor?->username}': {$reason}",
+        );
+
+        $this->notifications->notifyUser(
+            $customer->createdBy,
+            'customer',
+            $customer->id,
+            'Customer rejected',
+            "Customer '{$this->displayName($customer)}' ({$customer->cif_number}) was rejected: {$reason}",
         );
 
         return $customer;
@@ -916,6 +956,87 @@ class CustomerService
             after: ['status' => $customer->status, 'closure_reason' => $reason],
             description: "Customer '{$this->displayName($customer)}' ({$customer->cif_number}) was closed by '{$actor?->username}': {$reason}",
         );
+
+        return $customer;
+    }
+
+    // Same "generate, hash, save, then email off-request" shape as UserService::resetPassword() —
+    // dispatch()->afterResponse() runs the email send right after the HTTP response is flushed,
+    // so the admin's request isn't held up waiting on mail delivery.
+    public function resetPassword(Customer $customer): Customer
+    {
+        if (! $customer->email) {
+            throw ValidationException::withMessages([
+                'email' => ['This customer does not have an email address on file.'],
+            ]);
+        }
+
+        $plainPassword = Str::password(length: 12, letters: true, numbers: true, symbols: false, spaces: false);
+
+        $customer->update(['password' => bcrypt($plainPassword)]);
+        $customer->refresh();
+
+        $actor = Auth::guard('user')->user();
+
+        $this->audit->log(
+            action: 'password_reset',
+            module: 'customers',
+            auditable: $customer,
+            description: "Password for customer '{$this->displayName($customer)}' ({$customer->cif_number}) was reset by '{$actor?->username}'.",
+        );
+
+        dispatch(function () use ($customer, $plainPassword) {
+            $this->message->sendEmail(
+                actor: $customer,
+                type: 'password_reset',
+                recipient: $customer->email,
+                body: view('emails.bodies.customer.password_reset', [
+                    'customer' => $customer,
+                    'password' => $plainPassword,
+                ])->render(),
+                subject: 'Your Password Has Been Reset',
+                payload: ['customer_id' => $customer->id, 'cif_number' => $customer->cif_number],
+            );
+        })->afterResponse();
+
+        return $customer;
+    }
+
+    public function resetPin(Customer $customer): Customer
+    {
+        if (! $customer->email) {
+            throw ValidationException::withMessages([
+                'email' => ['This customer does not have an email address on file.'],
+            ]);
+        }
+
+        $plainPin = (string) random_int(1000, 9999);
+
+        $customer->update(['pin' => bcrypt($plainPin)]);
+        $customer->refresh();
+
+        $actor = Auth::guard('user')->user();
+
+        $this->audit->log(
+            action: 'pin_reset',
+            module: 'customers',
+            auditable: $customer,
+            description: "Transaction PIN for customer '{$this->displayName($customer)}' ({$customer->cif_number}) was reset by '{$actor?->username}'.",
+        );
+
+        dispatch(function () use ($customer, $plainPin) {
+            $this->message->sendEmail(
+                actor: $customer,
+                type: 'pin_reset',
+                recipient: $customer->email,
+                body: view('emails.bodies.customer.pin_reset', [
+                    'customer' => $customer,
+                    'pin'      => $plainPin,
+                ])->render(),
+                subject: 'Your Transaction PIN Has Been Reset',
+                payload: ['customer_id' => $customer->id, 'cif_number' => $customer->cif_number],
+            );
+        })->afterResponse();
 
         return $customer;
     }

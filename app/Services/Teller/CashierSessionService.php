@@ -22,6 +22,7 @@ use App\Models\Vault;
 use App\Services\Account\AccountService;
 use App\Services\Audit\AuditService;
 use App\Services\GeneralLedger\GeneralLedgerService;
+use App\Services\Notification\NotificationService;
 use App\Services\Posting\PostingService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
@@ -48,6 +49,7 @@ class CashierSessionService
         private PostingService $postings,
         private GeneralLedgerService $generalLedgers,
         private AccountService $accounts,
+        private NotificationService $notifications,
     ) {}
 
     public function list(int $perPage = 15, ?int $tellerId = null, ?int $cashierId = null, ?string $status = null): LengthAwarePaginator
@@ -433,6 +435,14 @@ class CashierSessionService
             description: "Cashier session #{$transaction->cashier_session_id} requested a withdrawal of {$amount} from account '{$accountNumber}' by '{$actor?->username}' — pending approval.",
         );
 
+        $this->notifications->notifyPermission(
+            'approve_teller_withdrawal',
+            'withdrawal',
+            $transaction->id,
+            'New withdrawal request',
+            "A cash withdrawal of {$amount} from account '{$accountNumber}' is awaiting your approval.",
+        );
+
         return $transaction;
     }
 
@@ -476,6 +486,14 @@ class CashierSessionService
             description: "Withdrawal request #{$transaction->id} of {$transaction->amount} approved by '{$actor?->username}'.",
         );
 
+        $this->notifications->notifyUser(
+            $transaction->requestedBy,
+            'withdrawal',
+            $transaction->id,
+            'Withdrawal approved',
+            "Your withdrawal request of {$transaction->amount} was approved.",
+        );
+
         return $transaction;
     }
 
@@ -511,6 +529,14 @@ class CashierSessionService
             auditable: $transaction,
             after: ['status' => $transaction->status, 'reason' => $reason],
             description: "Withdrawal request #{$transaction->id} rejected by '{$actor?->username}': {$reason}.",
+        );
+
+        $this->notifications->notifyUser(
+            $transaction->requestedBy,
+            'withdrawal',
+            $transaction->id,
+            'Withdrawal rejected',
+            "Your withdrawal request of {$transaction->amount} was rejected: {$reason}",
         );
 
         return $transaction;
@@ -600,6 +626,16 @@ class CashierSessionService
             description: "Cashier session #{$session->id} reconciled by '{$actor?->username}' — status now '{$session->status}'.",
         );
 
+        if ($session->status === CashierSessionStatus::PENDING_VARIANCE_APPROVAL->value) {
+            $this->notifications->notifyPermission(
+                'approve_cashier_variance',
+                'variance',
+                $session->id,
+                'New variance to review',
+                "Cashier session #{$session->id} has an out-of-tolerance variance of {$session->variance_amount} awaiting your approval.",
+            );
+        }
+
         return $session;
     }
 
@@ -647,6 +683,14 @@ class CashierSessionService
             description: "Cashier session #{$session->id} variance of {$session->variance_amount} approved by '{$actor?->username}'.",
         );
 
+        $this->notifications->notifyUser(
+            $session->closedBy,
+            'variance',
+            $session->id,
+            'Variance approved',
+            "The variance of {$session->variance_amount} on your cashier session #{$session->id} was approved.",
+        );
+
         return $session;
     }
 
@@ -671,6 +715,14 @@ class CashierSessionService
             auditable: $session,
             after: ['variance_reason' => $reason],
             description: "Cashier session #{$session->id} variance was rejected by '{$actor?->username}' — cashier must recount or escalate.",
+        );
+
+        $this->notifications->notifyUser(
+            $session->closedBy,
+            'variance',
+            $session->id,
+            'Variance rejected',
+            "The variance on your cashier session #{$session->id} was rejected: {$reason}",
         );
 
         return $session->refresh();

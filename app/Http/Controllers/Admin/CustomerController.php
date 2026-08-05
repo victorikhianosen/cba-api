@@ -49,9 +49,10 @@ class CustomerController extends Controller
     public function index(Request $request): JsonResponse
     {
         $customers = $this->customers->list(
-            $request->integer('per_page', 15),
+            $request->integer('per_page', 20),
             $request->string('search')->trim()->value() ?: null,
             $request->string('status')->trim()->value() ?: null,
+            $request->string('customer_type')->trim()->value() ?: null,
         );
 
         return $this->success(
@@ -72,11 +73,12 @@ class CustomerController extends Controller
 
     public function exportCsvFile(Request $request)
     {
-        $search = $request->string('search')->trim()->value() ?: null;
-        $status = $request->string('status')->trim()->value() ?: null;
+        $search       = $request->string('search')->trim()->value() ?: null;
+        $status       = $request->string('status')->trim()->value() ?: null;
+        $customerType = $request->string('customer_type')->trim()->value() ?: null;
 
         $rows = $this->customers
-            ->cursorForExport($search, $status)
+            ->cursorForExport($search, $status, $customerType)
             ->map(fn ($customer) => $this->exportRow($customer));
 
         return $this->exportCsv('customers.csv', $rows);
@@ -84,11 +86,12 @@ class CustomerController extends Controller
 
     public function exportExcelFile(Request $request)
     {
-        $search = $request->string('search')->trim()->value() ?: null;
-        $status = $request->string('status')->trim()->value() ?: null;
+        $search       = $request->string('search')->trim()->value() ?: null;
+        $status       = $request->string('status')->trim()->value() ?: null;
+        $customerType = $request->string('customer_type')->trim()->value() ?: null;
 
         $rows = $this->customers
-            ->cursorForExport($search, $status)
+            ->cursorForExport($search, $status, $customerType)
             ->map(fn ($customer) => $this->exportRow($customer));
 
         return $this->exportExcel('customers.xlsx', $rows);
@@ -116,10 +119,11 @@ class CustomerController extends Controller
 
     public function exportPdfFile(Request $request)
     {
-        $search = $request->string('search')->trim()->value() ?: null;
-        $status = $request->string('status')->trim()->value() ?: null;
+        $search       = $request->string('search')->trim()->value() ?: null;
+        $status       = $request->string('status')->trim()->value() ?: null;
+        $customerType = $request->string('customer_type')->trim()->value() ?: null;
 
-        $total = $this->customers->countForFilter($search, $status);
+        $total = $this->customers->countForFilter($search, $status, $customerType);
 
         if ($total > self::PDF_EXPORT_ROW_LIMIT) {
             return $this->error(
@@ -130,7 +134,7 @@ class CustomerController extends Controller
         }
 
         $rows = $this->customers
-            ->cursorForExport($search, $status)
+            ->cursorForExport($search, $status, $customerType)
             ->map(fn ($customer) => [
                 $customer->cif_number,
                 trim("{$customer->first_name} {$customer->last_name}") ?: $customer->business_name,
@@ -588,6 +592,72 @@ class CustomerController extends Controller
                 message: 'The requested customer was not found.',
                 responseCode: '404',
                 statusCode: 404,
+            );
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->error(
+                message: 'We are unable to process your request please try again.',
+                responseCode: '500',
+                statusCode: 500,
+            );
+        }
+    }
+
+    public function resetPassword(int $id): JsonResponse
+    {
+        try {
+            $customer = $this->customers->find($id);
+            $this->customers->resetPassword($customer);
+
+            return $this->success(
+                message: 'Password reset successfully. The new password has been emailed to the customer.',
+            );
+        } catch (ModelNotFoundException $e) {
+            return $this->error(
+                message: 'The requested customer was not found.',
+                responseCode: '404',
+                statusCode: 404,
+            );
+        } catch (ValidationException $e) {
+            return $this->error(
+                message: $e->getMessage(),
+                responseCode: '101',
+                statusCode: 422,
+                errors: $e->errors(),
+            );
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->error(
+                message: 'We are unable to process your request please try again.',
+                responseCode: '500',
+                statusCode: 500,
+            );
+        }
+    }
+
+    public function resetPin(int $id): JsonResponse
+    {
+        try {
+            $customer = $this->customers->find($id);
+            $this->customers->resetPin($customer);
+
+            return $this->success(
+                message: 'PIN reset successfully. The new PIN has been emailed to the customer.',
+            );
+        } catch (ModelNotFoundException $e) {
+            return $this->error(
+                message: 'The requested customer was not found.',
+                responseCode: '404',
+                statusCode: 404,
+            );
+        } catch (ValidationException $e) {
+            return $this->error(
+                message: $e->getMessage(),
+                responseCode: '101',
+                statusCode: 422,
+                errors: $e->errors(),
             );
         } catch (\Throwable $e) {
             report($e);

@@ -40,8 +40,6 @@ class AccountProductResource extends JsonResource
             'overdraft_limit'                      => $this->overdraft_limit,
             'overdraft_interest_rate'             => $this->overdraft_interest_rate,
             'withhold_tax'                         => $this->withhold_tax,
-            'is_lien_allowed'                      => $this->is_lien_allowed,
-            'max_allowed_lien_limit'               => $this->max_allowed_lien_limit,
             'dormancy_period_days'                 => $this->dormancy_period_days,
 
             'withdrawal_fee_amount'               => $this->withdrawal_fee_amount,

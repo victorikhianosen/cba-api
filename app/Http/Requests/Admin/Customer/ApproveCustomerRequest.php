@@ -29,30 +29,33 @@ class ApproveCustomerRequest extends FormRequest
     // Individual customers (including minors) must be assigned a savings product; every
     // business-like type (business, including government via legal_form) must be assigned
     // a current product.
+    // Disabled: any customer type may now be assigned any active account product on
+    // approval — left commented out (not deleted) in case this constraint needs to come
+    // back later.
     public function withValidator(Validator $validator): void
     {
-        $validator->after(function (Validator $validator) {
-            if (! $this->filled('account_product_id')) {
-                return;
-            }
-
-            $customer       = Customer::find((int) $this->route('id'));
-            $accountProduct = AccountProduct::find($this->input('account_product_id'));
-
-            if (! $customer || ! $accountProduct) {
-                return;
-            }
-
-            $expectedType = in_array($customer->customer_type, CustomerType::businessLike(), true)
-                ? 'current'
-                : 'savings';
-
-            if ($accountProduct->product_type !== $expectedType) {
-                $validator->errors()->add(
-                    'account_product_id',
-                    "This customer requires a '{$expectedType}' account product, but '{$accountProduct->name}' is a '{$accountProduct->product_type}' product.",
-                );
-            }
-        });
+        // $validator->after(function (Validator $validator) {
+        //     if (! $this->filled('account_product_id')) {
+        //         return;
+        //     }
+        //
+        //     $customer       = Customer::find((int) $this->route('id'));
+        //     $accountProduct = AccountProduct::find($this->input('account_product_id'));
+        //
+        //     if (! $customer || ! $accountProduct) {
+        //         return;
+        //     }
+        //
+        //     $expectedType = in_array($customer->customer_type, CustomerType::businessLike(), true)
+        //         ? 'current'
+        //         : 'savings';
+        //
+        //     if ($accountProduct->product_type !== $expectedType) {
+        //         $validator->errors()->add(
+        //             'account_product_id',
+        //             "This customer requires a '{$expectedType}' account product, but '{$accountProduct->name}' is a '{$accountProduct->product_type}' product.",
+        //         );
+        //     }
+        // });
     }
 }

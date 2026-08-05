@@ -5,17 +5,22 @@ declare(strict_types=1);
 namespace App\Services\Account;
 
 use App\Enums\Customer\CustomerType;
+use App\Mail\CoreBankMail;
+use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\Account;
 use App\Models\AccountProduct;
 use App\Models\AccountTier;
 use App\Models\Customer;
 use App\Models\Transaction;
 use App\Services\Audit\AuditService;
+use App\Services\Notification\NotificationService;
+use App\Services\Storage\FileStorageService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
 class AccountService
@@ -37,6 +42,9 @@ class AccountService
 
     public function __construct(
         private AuditService $audit,
+        private NotificationService $notifications,
+        private AccountStatementTemplateService $statementTemplates,
+        private FileStorageService $files,
     ) {}
 
     public function find(int $id): Account
@@ -80,6 +88,124 @@ class AccountService
             ->latest('id')
             ->paginate($perPage)
             ->withQueryString();
+    }
+
+    // Builds a real bank statement of account: opening balance carried forward from
+    // whatever precedes the period, a running balance per row, and debit/credit split
+    // out of the single signed `amount` column (direction/type tell us which side).
+    public function statementData(Account $account, ?string $from, ?string $to): array
+    {
+        $account->loadMissing(['customer', 'accountProduct', 'currency']);
+
+        $to   = $to ?: now()->toDateString();
+        $from = $from ?: $account->created_at?->toDateString() ?? $to;
+
+        $openingBalance = (float) (
+            Transaction::where('account_id', $account->id)
+                ->whereDate('posting_date', '<', $from)
+                ->orderByDesc('posting_date')
+                ->orderByDesc('id')
+                ->value('balance_after')
+            ?? $account->accountProduct?->min_required_opening_balance
+            ?? 0
+        );
+
+        $transactions = Transaction::where('account_id', $account->id)
+            ->whereDate('posting_date', '>=', $from)
+            ->whereDate('posting_date', '<=', $to)
+            ->orderBy('posting_date')
+            ->orderBy('id')
+            ->get();
+
+        $runningBalance = $openingBalance;
+        $totalDebit     = 0.0;
+        $totalCredit    = 0.0;
+
+        $rows = $transactions->map(function (Transaction $transaction) use (&$runningBalance, &$totalDebit, &$totalCredit) {
+            $isDebit = $transaction->type === 'debit';
+            $amount  = (float) $transaction->amount;
+
+            $runningBalance = $isDebit ? $runningBalance - $amount : $runningBalance + $amount;
+
+            if ($isDebit) {
+                $totalDebit += $amount;
+            } else {
+                $totalCredit += $amount;
+            }
+
+            return [
+                'date'      => $transaction->posting_date?->format('d M Y'),
+                'reference' => $transaction->reference ?? $transaction->transaction_reference,
+                'narration' => $transaction->narration ?: ucfirst((string) $transaction->transaction_type),
+                'debit'     => $isDebit ? number_format($amount, 2) : null,
+                'credit'    => $isDebit ? null : number_format($amount, 2),
+                'balance'   => number_format($runningBalance, 2),
+            ];
+        });
+
+        $template = $this->statementTemplates->getDefault();
+        $customer = $account->customer;
+
+        return [
+            'companyName'     => config('app.name'),
+            'headerImageBase64' => $this->imageDataUri($template?->header_image),
+            'generatedAt'     => now()->format('F j, Y g:i A'),
+            'accountName'     => $account->account_name,
+            'accountNumber'   => $account->account_number,
+            'accountProduct'  => $account->accountProduct?->name,
+            'currencyCode'    => $account->currency?->code,
+            'currencySymbol'  => $account->currency?->symbol ?? '',
+            'customerName'    => $customer
+                ? (trim("{$customer->first_name} {$customer->last_name}") ?: ($customer->business_name ?? ''))
+                : null,
+            'cifNumber'       => $customer?->cif_number,
+            'periodFrom'      => \Illuminate\Support\Carbon::parse($from)->format('d M Y'),
+            'periodTo'        => \Illuminate\Support\Carbon::parse($to)->format('d M Y'),
+            'openingBalance'  => number_format($openingBalance, 2),
+            'closingBalance'  => number_format($runningBalance, 2),
+            'totalDebit'      => number_format($totalDebit, 2),
+            'totalCredit'     => number_format($totalCredit, 2),
+            'transactions'    => $rows,
+        ];
+    }
+
+    private function imageDataUri(?string $path): ?string
+    {
+        $contents = $this->files->read($path);
+
+        if (! $contents) {
+            return null;
+        }
+
+        $mime = str_ends_with((string) $path, '.png') ? 'image/png' : 'image/jpeg';
+
+        return "data:{$mime};base64," . base64_encode($contents);
+    }
+
+    // Password-protected with the account number — a statement is financial information
+    // about the customer, so opening it on any desktop requires proving you already know
+    // that account's number, not just having the file. dompdf's default CPDF backend is
+    // the only one of its three renderers that supports encryption (setEncryption() lives
+    // on the underlying Cpdf object, reachable via the canvas only after render()).
+    public function renderStatementPdf(Account $account, ?string $from, ?string $to): string
+    {
+        $data = $this->statementData($account, $from, $to);
+
+        $pdf    = Pdf::loadView('accounts.statement', $data)->setPaper('a4', 'portrait');
+        $dompdf = $pdf->getDomPDF();
+        $dompdf->render();
+
+        $canvas = $dompdf->getCanvas();
+
+        if (method_exists($canvas, 'get_cpdf')) {
+            $canvas->get_cpdf()->setEncryption($account->account_number, '', [
+                'print'  => true,
+                'copy'   => false,
+                'modify' => false,
+            ]);
+        }
+
+        return $dompdf->output();
     }
 
     // Lets an already-onboarded customer open an additional account; the requested type must match the product's own type. One transaction — if anything fails, nothing is created.
@@ -137,7 +263,59 @@ class AccountService
             description: "Account '{$account->account_number}' ({$account->accountProduct?->name}) was opened for customer '{$customer->cif_number}' by '{$actor?->username}'.",
         );
 
+        $this->notifications->notifyPermission(
+            'create_accounts',
+            'account',
+            $account->id,
+            'New account opened',
+            "Account '{$account->account_number}' was opened for customer '{$customer->cif_number}'.",
+        );
+
+        // primary_account is only true for the very first account a customer ever gets —
+        // set once, at creation, by the line above — so it doubles as "is this the
+        // welcome email or the additional-account email" without any extra flag.
+        // CoreBankMail implements ShouldQueue, so send() queues it rather than blocking
+        // this request on delivery.
+        if ($customer->email) {
+            Mail::to($customer->email)->send(
+                $account->primary_account
+                    ? $this->welcomeMail($customer, $account)
+                    : $this->accountAddedMail($customer, $account)
+            );
+        }
+
         return $account->load(['accountProduct', 'currency', 'accountTier']);
+    }
+
+    private function customerDisplayName(Customer $customer): string
+    {
+        return trim("{$customer->first_name} {$customer->last_name}") ?: ($customer->business_name ?? '');
+    }
+
+    private function welcomeMail(Customer $customer, Account $account): CoreBankMail
+    {
+        return new CoreBankMail(
+            subjectLine: 'Welcome to ' . config('app.name'),
+            content: "Dear {$this->customerDisplayName($customer)},<br><br>"
+                . "Welcome aboard! Your {$account->accountProduct?->name} account has been successfully opened.<br><br>"
+                . "Bank Name: <strong>" . config('app.name') . "</strong><br>"
+                . "Account Name: <strong>{$account->account_name}</strong><br>"
+                . "Account Number: <strong>{$account->account_number}</strong><br><br>"
+                . "Thank you for banking with us.",
+        );
+    }
+
+    private function accountAddedMail(Customer $customer, Account $account): CoreBankMail
+    {
+        return new CoreBankMail(
+            subjectLine: 'New Account Opened — ' . $account->accountProduct?->name,
+            content: "Dear {$this->customerDisplayName($customer)},<br><br>"
+                . "A new {$account->accountProduct?->name} account has been added to your profile.<br><br>"
+                . "Bank Name: <strong>" . config('app.name') . "</strong><br>"
+                . "Account Name: <strong>{$account->account_name}</strong><br>"
+                . "Account Number: <strong>{$account->account_number}</strong><br><br>"
+                . "Thank you for banking with us.",
+        );
     }
 
     public function updateStatus(int $id, string $status): Account
@@ -203,6 +381,9 @@ class AccountService
         return $account;
     }
 
+    // Liens now go through AccountLienService's maker-checker flow (place/approve/reject/
+    // release) instead of being applied here directly.
+
     public function openDefaultAccountForCustomer(Customer $customer): ?Account
     {
         if (! $this->isEligibleForAutoOpening($customer) || $customer->accounts()->exists()) {
@@ -246,6 +427,14 @@ class AccountService
             description: "Account '{$account->account_number}' ({$accountProduct->name}) was opened for customer '{$customer->cif_number}' on tier {$account->accountTier?->level} by '{$actor?->username}'.",
         );
 
+        $this->notifications->notifyPermission(
+            'create_accounts',
+            'account',
+            $account->id,
+            'New account opened',
+            "Account '{$account->account_number}' was opened for customer '{$customer->cif_number}'.",
+        );
+
         return $account;
     }
 
@@ -269,6 +458,14 @@ class AccountService
         return in_array($customer->customer_type, CustomerType::businessLike(), true)
             ? (string) $customer->business_name
             : trim("{$customer->first_name} {$customer->last_name}");
+    }
+
+    // Keeps every account's account_name in step with the customer's own name — called
+    // after a customer update that touches first_name/last_name/business_name, since
+    // account_name is otherwise only ever set once, at account-opening time.
+    public function syncAccountNamesForCustomer(Customer $customer): void
+    {
+        $customer->accounts()->update(['account_name' => $this->accountName($customer)]);
     }
 
     // generateUniqueAccountNumber()'s lockForUpdate() has nothing to lock when a product-type

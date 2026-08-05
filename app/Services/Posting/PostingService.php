@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\Account\AccountPostingService;
 use App\Services\Audit\AuditService;
 use App\Services\GeneralLedger\GeneralLedgerPostingService;
+use App\Services\Notification\NotificationService;
 use App\Support\ReferenceGenerator;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -35,6 +36,7 @@ class PostingService
         private AccountPostingService $accountLedger,
         private GeneralLedgerPostingService $glLedger,
         private AuditService $audit,
+        private NotificationService $notifications,
     ) {}
 
     public function list(int $perPage = 15, ?string $from = null, ?string $to = null, ?string $search = null, ?string $status = null, ?string $type = null): LengthAwarePaginator
@@ -94,7 +96,7 @@ class PostingService
     public function find(int $id): Posting
     {
         return Posting::with([
-            'currency', 'financialTransaction.journalEntries', 'financialTransaction.transactions',
+            'currency', 'financialTransaction.journalEntries.generalLedger', 'financialTransaction.transactions',
             'createdBy', 'reviewedBy', 'approvedBy', 'rejectedBy',
         ])->findOrFail($id);
     }
@@ -129,6 +131,14 @@ class PostingService
             auditable: $posting,
             after: $posting->toArray(),
             description: "Posting '{$posting->reference}' ({$data['source_type']} → {$data['destination_type']}) was created by '{$actor?->username}'.",
+        );
+
+        $this->notifications->notifyPermission(
+            'approve_postings',
+            'posting',
+            $posting->id,
+            'New posting request',
+            "Posting '{$posting->reference}' for {$amount} is awaiting your approval.",
         );
 
         return $posting;
@@ -406,6 +416,14 @@ class PostingService
             description: "Posting '{$posting->reference}' was approved by '{$actor?->username}'.",
         );
 
+        $this->notifications->notifyUser(
+            $posting->createdBy,
+            'posting',
+            $posting->id,
+            'Posting approved',
+            "Your posting '{$posting->reference}' was approved.",
+        );
+
         return $financialTransaction;
     }
 
@@ -590,6 +608,14 @@ class PostingService
             auditable: $posting,
             after: ['status' => PostingStatus::REJECTED->value, 'rejection_reason' => $reason],
             description: "Posting '{$posting->reference}' was rejected by '{$actor?->username}': {$reason}",
+        );
+
+        $this->notifications->notifyUser(
+            $posting->createdBy,
+            'posting',
+            $posting->id,
+            'Posting rejected',
+            "Your posting '{$posting->reference}' was rejected: {$reason}",
         );
 
         return $posting;

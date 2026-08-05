@@ -20,11 +20,9 @@ class AccountProduct extends Model
             'min_required_balance'               => 'decimal:6',
             'overdraft_limit'                    => 'decimal:6',
             'overdraft_interest_rate'            => 'decimal:6',
-            'max_allowed_lien_limit'             => 'decimal:6',
             'enforce_min_required_balance'        => 'boolean',
             'allow_overdraft'                    => 'boolean',
             'withhold_tax'                       => 'boolean',
-            'is_lien_allowed'                    => 'boolean',
             'approved_at'                        => 'datetime',
 
             // Savings/current fee terms.

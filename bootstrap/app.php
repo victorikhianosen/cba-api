@@ -4,6 +4,7 @@ use App\Http\Middleware\CheckPermissionMiddleware;
 use App\Http\Middleware\CustomerMiddleware;
 use App\Http\Middleware\GlobalLogger;
 use App\Http\Middleware\JourneyLogger;
+use App\Http\Middleware\RequireTotpMiddleware;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\UserMiddleware;
 
@@ -23,6 +24,14 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->group(base_path('routes/admin.php'));
         },
     )
+    // Registered explicitly (rather than via withRouting's `channels:` param) so
+    // /broadcasting/auth runs behind our own Sanctum 'user' guard middleware instead of
+    // the framework's default 'web' (session) guard — this API has no session auth, every
+    // request (including the channel-auth handshake) carries a bearer token instead.
+    ->withBroadcasting(
+        __DIR__ . '/../routes/channels.php',
+        attributes: ['middleware' => ['user']],
+    )
     ->withMiddleware(function (Middleware $middleware): void {
 
         $middleware->append(GlobalLogger::class);
@@ -33,6 +42,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => CheckPermissionMiddleware::class,
             'user'       => UserMiddleware::class,
             'customer'   => CustomerMiddleware::class,
+            'totp'       => RequireTotpMiddleware::class,
         ]);
 
     })

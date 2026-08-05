@@ -20,6 +20,11 @@ class CoreBankMail extends Mailable implements ShouldQueue
         public string $subjectLine,
         public string $content,
         public array $files = [],
+        // Optional path => display-name map. Without an entry, the attachment shows the
+        // temp file's own basename — fine normally, but a problem when that basename
+        // itself is sensitive (e.g. a statement PDF's temp filename embedding the
+        // account number that also happens to be the PDF's open password).
+        public array $fileNames = [],
     ) {}
 
     public function envelope(): Envelope
@@ -43,7 +48,15 @@ class CoreBankMail extends Mailable implements ShouldQueue
     public function attachments(): array
     {
         return collect($this->files)
-            ->map(fn ($file) => Attachment::fromPath($file))
+            ->map(function ($file) {
+                $attachment = Attachment::fromPath($file);
+
+                if ($name = $this->fileNames[$file] ?? null) {
+                    $attachment = $attachment->as($name);
+                }
+
+                return $attachment;
+            })
             ->toArray();
     }
 }

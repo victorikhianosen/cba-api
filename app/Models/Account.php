@@ -57,4 +57,9 @@ class Account extends Model
     {
         return $this->hasMany(Transaction::class);
     }
+
+    public function liens(): HasMany
+    {
+        return $this->hasMany(AccountLien::class);
+    }
 }

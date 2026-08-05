@@ -56,8 +56,6 @@ class StoreAccountProductRequest extends FormRequest
             'overdraft_limit'                 => ['nullable', 'integer', new StrictInteger, 'min:0'],
             'overdraft_interest_rate'         => ['nullable', 'numeric', 'min:0'],
             'withhold_tax'                    => ['nullable', 'boolean'],
-            'is_lien_allowed'                 => ['nullable', 'boolean'],
-            'max_allowed_lien_limit'          => ['nullable', 'integer', new StrictInteger, 'min:0'],
             'dormancy_period_days'            => ['nullable', 'integer', 'min:1'],
 
             // Fee terms — Fineract m_savings_product field names.

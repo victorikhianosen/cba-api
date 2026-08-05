@@ -91,12 +91,6 @@ return new class extends Migration
             $table->boolean('withhold_tax')
                 ->default(false);
 
-            $table->boolean('is_lien_allowed')
-                ->default(false);
-
-            $table->decimal('max_allowed_lien_limit', 19, 6)
-                ->default(0);
-
             $table->unsignedInteger('dormancy_period_days')
                 ->default(365);
 

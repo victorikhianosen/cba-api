@@ -10,7 +10,9 @@ use App\Models\Investment;
 use App\Models\InvestmentProduct;
 use App\Models\User;
 use App\Services\Audit\AuditService;
+use App\Services\Notification\NotificationService;
 use App\Services\Posting\PostingService;
+use App\Services\Storage\FileStorageService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -28,6 +30,9 @@ class InvestmentService
         private PostingService $postings,
         private InvestmentScheduleService $schedules,
         private InvestmentTransactionService $transactions,
+        private NotificationService $notifications,
+        private InvestmentLetterTemplateService $letterTemplates,
+        private FileStorageService $files,
     ) {}
 
     public function list(int $perPage = 15, ?string $search = null, ?string $status = null): LengthAwarePaginator
@@ -66,6 +71,17 @@ class InvestmentService
         $investment->loadMissing(['customer', 'investmentProduct', 'sourceAccount', 'currency']);
 
         $customer = $investment->customer;
+        $template = $this->letterTemplates->getDefault();
+
+        // Real expected interest from the current schedule version (reflects any top-up
+        // already applied), not a fresh recompute — same source the "Current Schedule" UI
+        // tab reads from.
+        $latestVersion   = (int) ($investment->schedules()->max('version') ?: 1);
+        $grossInterest   = (float) $investment->schedules()->where('version', $latestVersion)->sum('expected_interest_amount');
+        $withholdingRate = (float) ($investment->withholding_tax_rate ?? 0);
+        $hasWithholdingTax = $withholdingRate > 0;
+        $withholdingTaxAmount = $hasWithholdingTax ? $grossInterest * ($withholdingRate / 100) : 0.0;
+        $netInterest          = $grossInterest - $withholdingTaxAmount;
 
         return [
             'companyName'           => config('app.name'),
@@ -90,7 +106,36 @@ class InvestmentService
             'autoRenew'             => $investment->auto_renew ? 'Yes' : 'No',
             'sourceAccountNumber'   => $investment->sourceAccount?->account_number,
             'status'                => ucfirst((string) $investment->status),
+
+            'grossInterestAmount'   => number_format($grossInterest, 2),
+            'hasWithholdingTax'     => $hasWithholdingTax,
+            'withholdingTaxRate'    => number_format($withholdingRate, 2),
+            'withholdingTaxAmount'  => number_format($withholdingTaxAmount, 2),
+            'netInterestAmount'     => number_format($netInterest, 2),
+
+            // Base64 data URIs, not URLs — dompdf can't reliably fetch remote/http images
+            // without extra config, so the active letter template's images (if any) are
+            // embedded directly. Everything is null when no default template exists yet,
+            // and the Blade view falls back to its generic text/line in that case.
+            'headerImageBase64'          => $this->imageDataUri($template?->header_image),
+            'signatoryOneName'           => $template?->signatory_one_name,
+            'signatoryOneSignatureBase64' => $this->imageDataUri($template?->signatory_one_signature),
+            'signatoryTwoName'           => $template?->signatory_two_name,
+            'signatoryTwoSignatureBase64' => $this->imageDataUri($template?->signatory_two_signature),
         ];
+    }
+
+    private function imageDataUri(?string $path): ?string
+    {
+        $contents = $this->files->read($path);
+
+        if (! $contents) {
+            return null;
+        }
+
+        $mime = str_ends_with((string) $path, '.png') ? 'image/png' : 'image/jpeg';
+
+        return "data:{$mime};base64," . base64_encode($contents);
     }
 
     public function transactionsFor(int $investmentId, int $perPage = 20): LengthAwarePaginator
@@ -255,6 +300,14 @@ class InvestmentService
             description: "Investment '{$investment->account_number}' was opened for customer '{$investment->customer?->cif_number}' by '{$actor?->username}'.",
         );
 
+        $this->notifications->notifyPermission(
+            'approve_investments',
+            'investment',
+            $investment->id,
+            'New investment request',
+            "Investment '{$investment->account_number}' is awaiting your approval.",
+        );
+
         return $investment->load(['customer', 'investmentProduct', 'sourceAccount']);
     }
 
@@ -344,6 +397,14 @@ class InvestmentService
             description: "Investment '{$investment->account_number}' was approved by '{$actor?->username}' and funded immediately.",
         );
 
+        $this->notifications->notifyUser(
+            $investment->createdBy,
+            'investment',
+            $investment->id,
+            'Investment approved',
+            "Your investment '{$investment->account_number}' was approved and funded.",
+        );
+
         return $investment;
     }
 
@@ -368,6 +429,14 @@ class InvestmentService
             before: ['status' => $before],
             after: ['status' => $investment->status, 'reason' => $reason],
             description: "Investment '{$investment->account_number}' was rejected by '{$actor?->username}': {$reason}",
+        );
+
+        $this->notifications->notifyUser(
+            $investment->createdBy,
+            'investment',
+            $investment->id,
+            'Investment rejected',
+            "Your investment '{$investment->account_number}' was rejected: {$reason}",
         );
 
         return $investment;
@@ -464,6 +533,14 @@ class InvestmentService
             description: "A top-up of {$amount} was requested for investment '{$investment->account_number}' by '{$actor?->username}'.",
         );
 
+        $this->notifications->notifyPermission(
+            'approve_investments',
+            'investment',
+            $investment->id,
+            'New top-up request',
+            "A top-up of {$amount} for investment '{$investment->account_number}' is awaiting your approval.",
+        );
+
         return $investment;
     }
 
@@ -488,6 +565,7 @@ class InvestmentService
 
         $topUpAmount    = (string) $investment->pending_topup_amount;
         $principalBefore = (string) $investment->current_principal;
+        $topUpRequester = $investment->pendingTopupRequestedBy;
 
         $investment = DB::transaction(function () use ($investment, $topUpAmount, $principalBefore, $actor) {
             $product = InvestmentProduct::with('generalLedgerMappings')->findOrFail($investment->investment_product_id);
@@ -542,6 +620,14 @@ class InvestmentService
             description: "Top-up of {$topUpAmount} for investment '{$investment->account_number}' was approved by '{$actor?->username}' and applied immediately.",
         );
 
+        $this->notifications->notifyUser(
+            $topUpRequester,
+            'investment',
+            $investment->id,
+            'Top-up approved',
+            "Your top-up of {$topUpAmount} for investment '{$investment->account_number}' was approved.",
+        );
+
         return $investment;
     }
 
@@ -555,6 +641,7 @@ class InvestmentService
 
         $actor       = Auth::guard('user')->user();
         $topUpAmount = (string) $investment->pending_topup_amount;
+        $topUpRequester = $investment->pendingTopupRequestedBy;
 
         $investment->update([
             'pending_topup_amount'       => null,
@@ -570,6 +657,14 @@ class InvestmentService
             auditable: $investment,
             after: ['top_up_amount' => $topUpAmount, 'reason' => $reason],
             description: "Top-up of {$topUpAmount} for investment '{$investment->account_number}' was rejected by '{$actor?->username}': {$reason}",
+        );
+
+        $this->notifications->notifyUser(
+            $topUpRequester,
+            'investment',
+            $investment->id,
+            'Top-up rejected',
+            "Your top-up of {$topUpAmount} for investment '{$investment->account_number}' was rejected: {$reason}",
         );
 
         return $investment;

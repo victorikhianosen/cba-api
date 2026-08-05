@@ -45,12 +45,12 @@ class AccountProductSeeder extends Seeder
 
     private function seedSavingsProduct(Currency $currency): void
     {
-        if (AccountProduct::where('name', 'basic_savings_account')->exists()) {
+        if (AccountProduct::where('name', 'Basic Savings Account')->exists()) {
             return;
         }
 
         app(AccountProductService::class)->create([
-            'name'                          => 'basic_savings_account',
+            'name'                          => 'Basic Savings Account',
             'product_type'                  => 'savings',
             'description'                   => 'Standard retail savings product seeded for testing.',
             'currency_id'                   => $currency->id,
@@ -75,12 +75,12 @@ class AccountProductSeeder extends Seeder
 
     private function seedCurrentProduct(Currency $currency): void
     {
-        if (AccountProduct::where('name', 'naira_current_account')->exists()) {
+        if (AccountProduct::where('name', 'Naira Current Account')->exists()) {
             return;
         }
 
         $accountProduct = app(AccountProductService::class)->create([
-            'name'                         => 'naira_current_account',
+            'name'                         => 'Naira Current Account',
             'product_type'                 => 'current',
             'description'                  => 'Standard Naira current account product, auto-assigned to business customers on approval.',
             'currency_id'                  => $currency->id,
@@ -101,12 +101,12 @@ class AccountProductSeeder extends Seeder
 
     private function seedDomiciliaryProduct(Currency $currency): void
     {
-        if (AccountProduct::where('name', 'usd_domiciliary_account')->exists()) {
+        if (AccountProduct::where('name', 'USD Domiciliary Account')->exists()) {
             return;
         }
 
         $accountProduct = app(AccountProductService::class)->create([
-            'name'                         => 'usd_domiciliary_account',
+            'name'                         => 'USD Domiciliary Account',
             'product_type'                 => 'domiciliary',
             'description'                  => 'USD domiciliary account product for customers holding foreign-currency balances.',
             'currency_id'                  => $currency->id,
@@ -127,12 +127,12 @@ class AccountProductSeeder extends Seeder
 
     private function seedLoanProduct(Currency $currency): void
     {
-        if (AccountProduct::where('name', 'personal_loan_product')->exists()) {
+        if (AccountProduct::where('name', 'Personal Loan Product')->exists()) {
             return;
         }
 
         app(AccountProductService::class)->create([
-            'name'            => 'personal_loan_product',
+            'name'            => 'Personal Loan Product',
             'product_type'    => 'loan',
             'description'     => 'Unsecured personal loan product seeded for testing.',
             'currency_id'     => $currency->id,
@@ -152,12 +152,12 @@ class AccountProductSeeder extends Seeder
 
     private function seedInvestmentProduct(Currency $currency): void
     {
-        if (AccountProduct::where('name', 'fixed_term_investment_product')->exists()) {
+        if (AccountProduct::where('name', 'Fixed Term Investment Product')->exists()) {
             return;
         }
 
         app(AccountProductService::class)->create([
-            'name'            => 'fixed_term_investment_product',
+            'name'            => 'Fixed Term Investment Product',
             'product_type'    => 'investment',
             'description'     => 'Fixed-term investment/deposit product seeded for testing.',
             'currency_id'     => $currency->id,

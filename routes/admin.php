@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Admin\AccountController;
+use App\Http\Controllers\Admin\AccountLienController;
 use App\Http\Controllers\Admin\AccountOfficerController;
 use App\Http\Controllers\Admin\AccountProductController;
 use App\Http\Controllers\Admin\AccountTierController;
@@ -17,9 +18,12 @@ use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\FinancialTransactionController;
 use App\Http\Controllers\Admin\GeneralLedgerController;
 use App\Http\Controllers\Admin\InvestmentController;
+use App\Http\Controllers\Admin\AccountStatementTemplateController;
+use App\Http\Controllers\Admin\InvestmentLetterTemplateController;
 use App\Http\Controllers\Admin\InvestmentProductController;
 use App\Http\Controllers\Admin\JournalEntryController;
 use App\Http\Controllers\Admin\LoanProductController;
+use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\PermissionController;
 use App\Http\Controllers\Admin\PostingController;
 use App\Http\Controllers\Admin\RoleController;
@@ -45,6 +49,24 @@ Route::middleware(['user'])->group(function () {
         Route::put('{id}', 'update')->middleware('permission:update_banks');
         Route::delete('{id}', 'destroy')->middleware('permission:delete_banks');
         Route::post('{id}/logo', 'uploadLogo')->middleware('permission:update_banks');
+    });
+
+    Route::prefix('investment-letter-templates')->controller(InvestmentLetterTemplateController::class)->group(function () {
+        Route::get('/', 'index')->middleware('permission:view_investment_letter_templates');
+        Route::post('/', 'store')->middleware('permission:create_investment_letter_templates');
+        Route::get('{id}', 'show')->middleware('permission:view_investment_letter_templates');
+        Route::put('{id}', 'update')->middleware('permission:update_investment_letter_templates');
+        Route::delete('{id}', 'destroy')->middleware('permission:delete_investment_letter_templates');
+        Route::post('{id}/set-default', 'setDefault')->middleware('permission:update_investment_letter_templates');
+    });
+
+    Route::prefix('account-statement-templates')->controller(AccountStatementTemplateController::class)->group(function () {
+        Route::get('/', 'index')->middleware('permission:view_account_statement_templates');
+        Route::post('/', 'store')->middleware('permission:create_account_statement_templates');
+        Route::get('{id}', 'show')->middleware('permission:view_account_statement_templates');
+        Route::put('{id}', 'update')->middleware('permission:update_account_statement_templates');
+        Route::delete('{id}', 'destroy')->middleware('permission:delete_account_statement_templates');
+        Route::post('{id}/set-default', 'setDefault')->middleware('permission:update_account_statement_templates');
     });
 
     Route::prefix('branches')->controller(BranchController::class)->group(function () {
@@ -166,7 +188,7 @@ Route::middleware(['user'])->group(function () {
         Route::get('/', 'index')->middleware('permission:view_tellers');
         Route::get('mine', 'mine')->middleware('permission:operate_teller');
         Route::get('withdrawals/pending', 'pendingWithdrawals')->middleware('permission:approve_teller_withdrawal');
-        Route::post('withdrawals/{transactionId}/approve', 'approveWithdrawal')->middleware('permission:approve_teller_withdrawal');
+        Route::post('withdrawals/{transactionId}/approve', 'approveWithdrawal')->middleware(['permission:approve_teller_withdrawal', 'totp']);
         Route::post('withdrawals/{transactionId}/reject', 'rejectWithdrawal')->middleware('permission:approve_teller_withdrawal');
         Route::get('{id}', 'show')->middleware('permission:view_tellers');
         Route::post('open', 'open')->middleware('permission:operate_teller');
@@ -176,7 +198,7 @@ Route::middleware(['user'])->group(function () {
         Route::post('{id}/withdraw', 'withdraw')->middleware('permission:operate_teller');
         Route::post('{id}/close', 'close')->middleware('permission:operate_teller');
         Route::post('{id}/reconcile', 'reconcile')->middleware('permission:operate_teller');
-        Route::post('{id}/approve-variance', 'approveVariance')->middleware('permission:approve_cashier_variance');
+        Route::post('{id}/approve-variance', 'approveVariance')->middleware(['permission:approve_cashier_variance', 'totp']);
         Route::post('{id}/reject-variance', 'rejectVariance')->middleware('permission:approve_cashier_variance');
     });
 
@@ -203,6 +225,8 @@ Route::middleware(['user'])->group(function () {
         Route::put('{customerId}/documents/{documentId}', 'updateDocument')->middleware('permission:update_customers');
         Route::post('{id}/accounts', 'storeAccount')->middleware('permission:create_accounts');
         Route::post('{id}/accounts/status', 'updateAccountsStatus')->middleware('permission:update_customers');
+        Route::post('{id}/reset-password', 'resetPassword')->middleware('permission:update_customers');
+        Route::post('{id}/reset-pin', 'resetPin')->middleware('permission:update_customers');
         Route::post('{id}/toggle-internet-banking', 'toggleInternetBanking')->middleware('permission:update_customers');
         Route::post('{id}/toggle-sms', 'toggleSms')->middleware('permission:update_customers');
         Route::post('{id}/toggle-email', 'toggleEmail')->middleware('permission:update_customers');
@@ -210,14 +234,37 @@ Route::middleware(['user'])->group(function () {
 
     Route::get('statuses', [StatusController::class, 'index'])->middleware('permission:view_customers');
 
+    // No `permission:` gate — every authenticated user (of any role) sees their own
+    // notifications; the outer 'user' group middleware is the only guard needed.
+    Route::prefix('notifications')->controller(NotificationController::class)->group(function () {
+        Route::get('/', 'index');
+        Route::post('read-all', 'markAllAsRead');
+        Route::post('{id}/read', 'markAsRead');
+    });
+
     Route::prefix('accounts')->controller(AccountController::class)->group(function () {
         Route::get('/', 'index')->middleware('permission:view_accounts');
         Route::get('lookup', 'lookup')->middleware('permission:view_accounts');
         Route::get('{id}', 'show')->middleware('permission:view_accounts');
         Route::get('{id}/transactions', 'transactions')->middleware('permission:view_accounts');
+        Route::get('{id}/statement', 'statement')->middleware('permission:view_accounts');
+        Route::post('{id}/statement/email', 'emailStatement')->middleware('permission:view_accounts');
         Route::post('{id}/status', 'updateStatus')->middleware('permission:update_accounts');
+        Route::post('{id}/lien', 'placeLien')->middleware('permission:create_liens');
+        Route::get('{id}/liens', 'liens')->middleware('permission:view_accounts');
         Route::post('{id}/toggle-pnd', 'togglePnd')->middleware('permission:update_accounts');
         Route::post('{id}/toggle-pnc', 'togglePnc')->middleware('permission:update_accounts');
+    });
+
+    Route::prefix('account-liens')->controller(AccountLienController::class)->group(function () {
+        Route::get('/', 'index')->middleware('permission:view_liens');
+        Route::get('export/csv', 'exportCsvFile')->middleware('permission:view_liens');
+        Route::get('export/excel', 'exportExcelFile')->middleware('permission:view_liens');
+        Route::get('export/pdf', 'exportPdfFile')->middleware('permission:view_liens');
+        Route::get('{id}', 'show')->middleware('permission:view_liens');
+        Route::post('{id}/approve', 'approve')->middleware(['permission:approve_liens', 'totp']);
+        Route::post('{id}/reject', 'reject')->middleware('permission:approve_liens');
+        Route::post('{id}/release', 'release')->middleware(['permission:approve_liens', 'totp']);
     });
 
     Route::prefix('investments')->controller(InvestmentController::class)->group(function () {
@@ -231,12 +278,12 @@ Route::middleware(['user'])->group(function () {
         Route::get('{id}/letter', 'letterPdf')->middleware('permission:view_investments');
         Route::post('{id}/letter/email', 'emailLetter')->middleware('permission:view_investments');
         Route::get('{id}/approval-preview', 'previewApproval')->middleware('permission:approve_investments');
-        Route::post('{id}/approve', 'approve')->middleware('permission:approve_investments');
+        Route::post('{id}/approve', 'approve')->middleware(['permission:approve_investments', 'totp']);
         Route::post('{id}/reject', 'reject')->middleware('permission:approve_investments');
         Route::post('{id}/topup/preview', 'previewTopUp')->middleware('permission:create_investments');
         Route::post('{id}/topup', 'requestTopUp')->middleware('permission:create_investments');
         Route::get('{id}/topup/pending-preview', 'previewPendingTopUp')->middleware('permission:approve_investments');
-        Route::post('{id}/topup/approve', 'approveTopUp')->middleware('permission:approve_investments');
+        Route::post('{id}/topup/approve', 'approveTopUp')->middleware(['permission:approve_investments', 'totp']);
         Route::post('{id}/topup/reject', 'rejectTopUp')->middleware('permission:approve_investments');
         Route::post('{id}/terminate', 'terminate')->middleware('permission:approve_investments');
     });
@@ -283,14 +330,14 @@ Route::middleware(['user'])->group(function () {
     Route::prefix('postings')->controller(PostingController::class)->group(function () {
         Route::get('/', 'index')->middleware('permission:view_postings');
         Route::post('/', 'store')->middleware('permission:create_postings');
-        Route::post('bulk-approve', 'bulkApprove')->middleware('permission:approve_postings');
+        Route::post('bulk-approve', 'bulkApprove')->middleware(['permission:approve_postings', 'totp']);
         Route::get('bulk-import/template', 'bulkImportTemplate')->middleware('permission:create_postings');
         Route::post('bulk-import', 'bulkImport')->middleware('permission:create_postings');
         Route::get('export/csv', 'exportCsvFile')->middleware('permission:view_postings');
         Route::get('export/excel', 'exportExcelFile')->middleware('permission:view_postings');
         Route::get('export/pdf', 'exportPdfFile')->middleware('permission:view_postings');
         Route::get('{id}', 'show')->middleware('permission:view_postings');
-        Route::post('{id}/approve', 'approve')->middleware('permission:approve_postings');
+        Route::post('{id}/approve', 'approve')->middleware(['permission:approve_postings', 'totp']);
         Route::post('{id}/reject', 'reject')->middleware('permission:approve_postings');
     });
 

@@ -3,28 +3,35 @@
 <head>
     <meta charset="utf-8">
     <style>
-        body { font-family: 'DejaVu Sans', sans-serif; font-size: 12px; color: #1e293b; line-height: 1.6; }
-        .header { text-align: center; border-bottom: 2px solid #1e3a8a; padding-bottom: 12px; margin-bottom: 24px; }
-        .header h1 { margin: 0; font-size: 20px; color: #1e3a8a; }
-        .header p { margin: 2px 0; font-size: 10px; color: #64748b; }
-        .ref-row { display: table; width: 100%; margin-bottom: 18px; }
-        .ref-row .left, .ref-row .right { display: table-cell; width: 50%; font-size: 11px; }
+        body { font-family: 'DejaVu Sans', sans-serif; font-size: 11px; color: #1e293b; line-height: 1.4; }
+        .header { text-align: center; border-bottom: 2px solid #1e3a8a; padding-bottom: 8px; margin-bottom: 14px; }
+        .header h1 { margin: 0; font-size: 18px; color: #1e3a8a; }
+        .header p { margin: 2px 0; font-size: 9px; color: #64748b; }
+        .ref-row { display: table; width: 100%; margin-bottom: 12px; }
+        .ref-row .left, .ref-row .right { display: table-cell; width: 50%; font-size: 10px; }
         .ref-row .right { text-align: right; }
-        .title { text-align: center; font-size: 14px; font-weight: bold; text-decoration: underline; margin: 22px 0; }
-        .salutation { margin-bottom: 10px; }
-        table.details { width: 100%; border-collapse: collapse; margin: 16px 0; }
-        table.details th, table.details td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; font-size: 11px; }
+        .title { text-align: center; font-size: 13px; font-weight: bold; text-decoration: underline; margin: 12px 0; }
+        .salutation { margin-bottom: 8px; }
+        table.details { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        table.details th, table.details td { border: 1px solid #cbd5e1; padding: 4px 8px; text-align: left; font-size: 10px; }
         table.details th { background: #f1f5f9; width: 45%; font-weight: bold; color: #334155; }
-        p { margin: 8px 0; text-align: justify; }
-        .signature { margin-top: 48px; }
-        .signature .line { margin-top: 40px; border-top: 1px solid #1e293b; width: 220px; }
-        .footer { margin-top: 40px; border-top: 1px solid #cbd5e1; padding-top: 8px; font-size: 9px; color: #94a3b8; text-align: center; }
+        p { margin: 6px 0; text-align: justify; }
+        .signature-row { display: table; width: 100%; margin-top: 20px; }
+        .signature-row .block { display: table-cell; width: 50%; vertical-align: top; text-align: center; }
+        .signature-row .block img { max-height: 36px; max-width: 140px; display: block; margin: 0 auto; }
+        .signature-row .line { margin: 24px auto 0; border-top: 1px solid #1e293b; width: 180px; }
+        .signature-row .name { margin-top: 4px; font-weight: bold; }
+        .footer { margin-top: 16px; border-top: 1px solid #cbd5e1; padding-top: 6px; font-size: 8px; color: #94a3b8; text-align: center; }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>{{ $companyName }}</h1>
-        <p>{{ $companyAddress }}</p>
+        @if(!empty($headerImageBase64))
+            <img src="{{ $headerImageBase64 }}" alt="{{ $companyName }}" style="width: 100%; max-height: 100px;">
+        @else
+            <h1>{{ $companyName }}</h1>
+            <p>{{ $companyAddress }}</p>
+        @endif
     </div>
 
     <div class="ref-row">
@@ -61,6 +68,11 @@
         <tr><th>Tenure</th><td>{{ $tenure }} days</td></tr>
         <tr><th>Start Date</th><td>{{ $startDate }}</td></tr>
         <tr><th>Maturity Date</th><td>{{ $maturityDate }}</td></tr>
+        <tr><th>Projected Interest Earnings</th><td>{{ $currencySymbol }}{{ $grossInterestAmount }}</td></tr>
+        @if($hasWithholdingTax)
+            <tr><th>Withholding Tax ({{ $withholdingTaxRate }}%)</th><td>-{{ $currencySymbol }}{{ $withholdingTaxAmount }}</td></tr>
+            <tr><th>Net Interest After Tax</th><td>{{ $currencySymbol }}{{ $netInterestAmount }}</td></tr>
+        @endif
         <tr><th>Projected Maturity Value</th><td>{{ $currencySymbol }}{{ $maturityValue }}</td></tr>
         <tr><th>Auto Renewal</th><td>{{ $autoRenew }}</td></tr>
         <tr><th>Source Account</th><td>{{ $sourceAccountNumber }}</td></tr>
@@ -78,16 +90,39 @@
 
     <p>Thank you for banking with us.</p>
 
-    <div class="signature">
-        Yours faithfully,<br>
-        <strong>{{ $companyName }}</strong>
-        <div class="line"></div>
-        Authorized Signatory
-    </div>
+    <p>Yours faithfully,<br><strong>{{ $companyName }}</strong></p>
 
-    <div class="footer">
+    @if(!empty($signatoryOneName) || !empty($signatoryTwoName))
+        <div class="signature-row">
+            <div class="block">
+                @if(!empty($signatoryOneSignatureBase64))
+                    <img src="{{ $signatoryOneSignatureBase64 }}" alt="Signature">
+                @endif
+                <div class="line"></div>
+                <div class="name">{{ $signatoryOneName ?: 'Authorized Signatory' }}</div>
+            </div>
+            <div class="block">
+                @if(!empty($signatoryTwoName))
+                    @if(!empty($signatoryTwoSignatureBase64))
+                        <img src="{{ $signatoryTwoSignatureBase64 }}" alt="Signature">
+                    @endif
+                    <div class="line"></div>
+                    <div class="name">{{ $signatoryTwoName }}</div>
+                @endif
+            </div>
+        </div>
+    @else
+        <div class="signature-row">
+            <div class="block">
+                <div class="line"></div>
+                Authorized Signatory
+            </div>
+        </div>
+    @endif
+
+    {{-- <div class="footer">
         This is a system-generated letter and does not require a physical signature to be valid.
         Generated on {{ $generatedAt }}.
-    </div>
+    </div> --}}
 </body>
 </html>

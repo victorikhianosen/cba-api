@@ -37,10 +37,13 @@ class UserService
 
     public function create(array $data): User
     {
-        $plainPassword = $data['password'];
+        // Neither the password nor the username is ever admin-supplied — both are
+        // generated here so the only way a user learns their credentials is the
+        // "Your Account is Ready" email sent below.
+        $plainPassword = Str::password(length: 12, letters: true, numbers: true, symbols: false, spaces: false);
 
         $data['code']     = $this->generateUniqueCode();
-        $data['username'] = $data['username'] ?? $this->generateUniqueUsername($data['first_name'], $data['last_name']);
+        $data['username'] = $this->generateUniqueUsername($data['first_name'], $data['last_name']);
         $data['password'] = bcrypt($plainPassword);
         $data['status']   = 'pending';
 
