@@ -119,7 +119,7 @@ class PostingService
         $posting = DB::transaction(fn() => Posting::create([
             ...$data,
             'reference'             => ReferenceGenerator::generate($this->referencePrefixFor($data['module'] ?? null)),
-            'transaction_reference' => ReferenceGenerator::generate('TXN'),
+            'transaction_reference' => ReferenceGenerator::generate('TRN'),
             'total_amount'          => bcadd(bcadd(bcadd($amount, $fee, 4), $vat, 4), $tax, 4),
             'status'                => PostingStatus::PENDING->value,
             'created_by'            => $actor?->id,
@@ -453,7 +453,7 @@ class PostingService
             $posting = Posting::create([
                 ...$data,
                 'reference'             => ReferenceGenerator::generate($this->referencePrefixFor($data['module'] ?? null)),
-                'transaction_reference' => ReferenceGenerator::generate('TXN'),
+                'transaction_reference' => ReferenceGenerator::generate('TRN'),
                 'total_amount'          => bcadd(bcadd(bcadd($amount, $fee, 4), $vat, 4), $tax, 4),
                 'status'                => PostingStatus::PENDING->value,
                 'created_by'            => $actor?->id,
@@ -707,6 +707,7 @@ class PostingService
         };
 
         $financialTransaction = FinancialTransaction::create([
+            'reference'             => ReferenceGenerator::generate('FRN'),
             'transaction_reference' => $posting->transaction_reference,
             'idempotency_key'       => $posting->idempotency_key,
             'posting_id'            => $posting->id,

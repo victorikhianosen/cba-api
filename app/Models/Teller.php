@@ -17,8 +17,8 @@ class Teller extends Model
     protected function casts(): array
     {
         return [
-            'opening_float_ceiling_amount'         => 'decimal:6',
-            'variance_tolerance_amount'             => 'decimal:6',
+            'opening_float_ceiling_amount'         => 'decimal:2',
+            'variance_tolerance_amount'             => 'decimal:2',
             'requires_variance_approval'            => 'boolean',
             'allows_teller_to_teller_transfer'      => 'boolean',
             'approved_at'                           => 'datetime',

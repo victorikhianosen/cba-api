@@ -15,10 +15,10 @@ class InvestmentSchedule extends Model
     {
         return [
             'due_date'                   => 'date',
-            'opening_principal_balance'  => 'decimal:6',
-            'expected_interest_amount'   => 'decimal:6',
-            'closing_principal_balance'  => 'decimal:6',
-            'paid_amount'                => 'decimal:6',
+            'opening_principal_balance'  => 'decimal:2',
+            'expected_interest_amount'   => 'decimal:2',
+            'closing_principal_balance'  => 'decimal:2',
+            'paid_amount'                => 'decimal:2',
             'paid_date'                  => 'date',
             'accrued_at'                 => 'datetime',
             'version'                    => 'integer',

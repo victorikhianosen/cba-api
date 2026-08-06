@@ -15,9 +15,9 @@ class LoanProduct extends Model
     protected function casts(): array
     {
         return [
-            'interest_rate'                        => 'decimal:6',
-            'min_nominal_interest_rate_per_period'  => 'decimal:6',
-            'max_nominal_interest_rate_per_period'  => 'decimal:6',
+            'interest_rate'                        => 'decimal:2',
+            'min_nominal_interest_rate_per_period'  => 'decimal:2',
+            'max_nominal_interest_rate_per_period'  => 'decimal:2',
             'min_principal_amount'                  => 'integer',
             'max_principal_amount'                  => 'integer',
             'default_principal_amount'              => 'integer',

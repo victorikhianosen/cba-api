@@ -19,11 +19,11 @@ return new class extends Migration
 
             $table->foreignId('currency_id')->constrained('currencies')->restrictOnDelete();
 
-            $table->decimal('default_opening_float_amount', 19, 6)->nullable();
-            $table->decimal('max_opening_float_amount', 19, 6)->nullable();
+            $table->decimal('default_opening_float_amount', 19, 2)->nullable();
+            $table->decimal('max_opening_float_amount', 19, 2)->nullable();
 
             // Variance at/under this amount auto-clears on reconcile — no second admin needed.
-            $table->decimal('variance_tolerance_amount', 19, 6)->default(0);
+            $table->decimal('variance_tolerance_amount', 19, 2)->default(0);
             $table->boolean('requires_variance_approval')->default(true);
 
             // Off by default — most banks route excess cash through the vault, not teller-to-teller.

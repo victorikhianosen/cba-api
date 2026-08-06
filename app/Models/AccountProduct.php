@@ -15,20 +15,20 @@ class AccountProduct extends Model
     protected function casts(): array
     {
         return [
-            'interest_rate'                     => 'decimal:6',
-            'min_required_opening_balance'       => 'decimal:6',
-            'min_required_balance'               => 'decimal:6',
-            'overdraft_limit'                    => 'decimal:6',
-            'overdraft_interest_rate'            => 'decimal:6',
+            'interest_rate'                     => 'decimal:2',
+            'min_required_opening_balance'       => 'decimal:2',
+            'min_required_balance'               => 'decimal:2',
+            'overdraft_limit'                    => 'decimal:2',
+            'overdraft_interest_rate'            => 'decimal:2',
             'enforce_min_required_balance'        => 'boolean',
             'allow_overdraft'                    => 'boolean',
             'withhold_tax'                       => 'boolean',
             'approved_at'                        => 'datetime',
 
             // Savings/current fee terms.
-            'withdrawal_fee_amount'               => 'decimal:6',
-            'annual_fee_amount'                   => 'decimal:6',
-            'min_balance_for_interest_calculation' => 'decimal:6',
+            'withdrawal_fee_amount'               => 'decimal:2',
+            'annual_fee_amount'                   => 'decimal:2',
+            'min_balance_for_interest_calculation' => 'decimal:2',
         ];
     }
 

@@ -14,8 +14,8 @@ class CashierTransaction extends Model
     protected function casts(): array
     {
         return [
-            'amount'          => 'decimal:6',
-            'running_balance' => 'decimal:6',
+            'amount'          => 'decimal:2',
+            'running_balance' => 'decimal:2',
         ];
     }
 

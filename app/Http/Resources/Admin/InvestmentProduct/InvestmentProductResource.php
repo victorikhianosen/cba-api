@@ -42,6 +42,7 @@ class InvestmentProductResource extends JsonResource
             'auto_renew'                     => $this->auto_renew,
             'allow_top_up'                   => $this->allow_top_up,
             'allow_partial_withdrawal'       => $this->allow_partial_withdrawal,
+            'minimum_retention_percentage'   => $this->minimum_retention_percentage,
             'allow_early_liquidation'        => $this->allow_early_liquidation,
             'early_liquidation_lock_days'    => $this->early_liquidation_lock_days,
             'early_liquidation_penalty_rate' => $this->early_liquidation_penalty_rate,

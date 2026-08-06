@@ -15,12 +15,12 @@ class FinancialTransaction extends Model
     protected function casts(): array
     {
         return [
-            'amount'        => 'decimal:4',
-            'fee'           => 'decimal:4',
-            'commission'    => 'decimal:4',
-            'vat'           => 'decimal:4',
-            'discount'      => 'decimal:4',
-            'exchange_rate' => 'decimal:8',
+            'amount'        => 'decimal:2',
+            'fee'           => 'decimal:2',
+            'commission'    => 'decimal:2',
+            'vat'           => 'decimal:2',
+            'discount'      => 'decimal:2',
+            'exchange_rate' => 'decimal:2',
             'is_reversed'   => 'boolean',
             'payload'       => 'array',
             'metadata'      => 'array',

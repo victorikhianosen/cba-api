@@ -15,12 +15,12 @@ class Posting extends Model
     protected function casts(): array
     {
         return [
-            'amount'         => 'decimal:4',
-            'exchange_rate'  => 'decimal:8',
-            'fee'            => 'decimal:4',
-            'vat'            => 'decimal:4',
-            'tax'            => 'decimal:4',
-            'total_amount'   => 'decimal:4',
+            'amount'         => 'decimal:2',
+            'exchange_rate'  => 'decimal:2',
+            'fee'            => 'decimal:2',
+            'vat'            => 'decimal:2',
+            'tax'            => 'decimal:2',
+            'total_amount'   => 'decimal:2',
             'payload'        => 'array',
             'metadata'       => 'array',
             'reviewed_at'    => 'datetime',

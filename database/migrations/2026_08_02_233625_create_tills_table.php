@@ -32,8 +32,8 @@ return new class extends Migration
             // product edit never retroactively changes an existing till's rules, same
             // discipline as investments.early_liquidation_penalty_rate being frozen off
             // investment_products.
-            $table->decimal('opening_float_ceiling_amount', 19, 6)->nullable();
-            $table->decimal('variance_tolerance_amount', 19, 6)->default(0);
+            $table->decimal('opening_float_ceiling_amount', 19, 2)->nullable();
+            $table->decimal('variance_tolerance_amount', 19, 2)->default(0);
             $table->boolean('requires_variance_approval')->default(true);
             $table->boolean('allows_till_to_till_transfer')->default(false);
 

@@ -20,7 +20,7 @@ return new class extends Migration
             $table->string('idempotency_key')->unique();
             $table->foreignId('source_id')->constrained('general_ledgers');
             $table->foreignId('destination_id')->constrained('general_ledgers');
-            $table->decimal('amount', 20, 4)->default(0);
+            $table->decimal('amount', 20, 2)->default(0);
             $table->foreignId('currency_id')->constrained('currencies');
             $table->text('remarks')->nullable();
             $table->string('status')->default('pending_review');

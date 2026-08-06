@@ -316,7 +316,8 @@ class TransactionSampleSeeder extends Seeder
         $amount  = (string) $s['amount'];
 
         $financialTransaction = FinancialTransaction::create([
-            'transaction_reference' => ReferenceGenerator::generate('TXN'),
+            'reference'             => ReferenceGenerator::generate('FRN'),
+            'transaction_reference' => ReferenceGenerator::generate('TRN'),
             'idempotency_key'       => (string) Str::uuid(),
             'module'                => $s['module'],
             'transaction_type'      => $s['transaction_type'],

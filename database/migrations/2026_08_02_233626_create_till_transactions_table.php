@@ -22,11 +22,11 @@ return new class extends Migration
             $table->enum('counterparty_type', ['vault', 'till'])->nullable();
             $table->unsignedBigInteger('counterparty_id')->nullable();
 
-            $table->decimal('amount', 19, 6);
+            $table->decimal('amount', 19, 2);
 
             // Denormalized till balance immediately after this movement — same pattern as
             // PostingService::execute()'s counterparty snapshot, avoids recomputing history.
-            $table->decimal('running_balance', 19, 6);
+            $table->decimal('running_balance', 19, 2);
 
             $table->string('narration')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();

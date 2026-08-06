@@ -14,9 +14,9 @@ class JournalEntry extends Model
     protected function casts(): array
     {
         return [
-            'amount'         => 'decimal:4',
-            'balance_before' => 'decimal:4',
-            'balance_after'  => 'decimal:4',
+            'amount'         => 'decimal:2',
+            'balance_before' => 'decimal:2',
+            'balance_after'  => 'decimal:2',
             'value_date'     => 'date',
             'posting_date'   => 'date',
         ];

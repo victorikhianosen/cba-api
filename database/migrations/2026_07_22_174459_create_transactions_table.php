@@ -48,9 +48,9 @@ return new class extends Migration
             $table->string('counterparty_bank_name')->nullable();
 
             $table->enum('debit_credit', ['debit', 'credit']);
-            $table->decimal('amount', 20, 4)->default(0);
-            $table->decimal('balance_before', 20, 4)->default(0);
-            $table->decimal('balance_after', 20, 4)->default(0);
+            $table->decimal('amount', 20, 2)->default(0);
+            $table->decimal('balance_before', 20, 2)->default(0);
+            $table->decimal('balance_after', 20, 2)->default(0);
             $table->foreignId('currency_id')->constrained('currencies');
             $table->date('value_date')->nullable();
             $table->date('posting_date')->nullable();

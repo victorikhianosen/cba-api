@@ -19,7 +19,7 @@ return new class extends Migration
             $table->string('name')->unique();
 
             $table->string('gl_code', 45)->unique();
-            $table->decimal('balance', 25, 6)->default(0);
+            $table->decimal('balance', 25, 2)->default(0);
 
             $table->foreignId('currency_id')
                 ->nullable()

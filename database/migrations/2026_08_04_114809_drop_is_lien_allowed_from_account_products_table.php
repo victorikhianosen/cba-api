@@ -10,6 +10,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasColumn('account_products', 'is_lien_allowed')) {
+            return;
+        }
+
         Schema::table('account_products', function (Blueprint $table) {
             $table->dropColumn('is_lien_allowed');
         });

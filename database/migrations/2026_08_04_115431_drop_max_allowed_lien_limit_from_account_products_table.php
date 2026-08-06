@@ -10,6 +10,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasColumn('account_products', 'max_allowed_lien_limit')) {
+            return;
+        }
+
         Schema::table('account_products', function (Blueprint $table) {
             $table->dropColumn('max_allowed_lien_limit');
         });
@@ -18,7 +22,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('account_products', function (Blueprint $table) {
-            $table->decimal('max_allowed_lien_limit', 19, 6)->default(0);
+            $table->decimal('max_allowed_lien_limit', 19, 2)->default(0);
         });
     }
 };

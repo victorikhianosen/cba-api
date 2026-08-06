@@ -47,6 +47,7 @@ class StoreInvestmentProductRequest extends FormRequest
             'auto_renew'                    => ['nullable', 'boolean'],
             'allow_top_up'                  => ['nullable', 'boolean'],
             'allow_partial_withdrawal'      => ['nullable', 'boolean'],
+            'minimum_retention_percentage'  => ['nullable', 'numeric', 'min:0', 'max:100', 'regex:/^\d+(\.\d{1,2})?$/'],
             'allow_early_liquidation'       => ['nullable', 'boolean'],
             'early_liquidation_lock_days'   => ['nullable', 'integer', 'min:0'],
             'early_liquidation_penalty_rate' => ['nullable', 'numeric', 'min:0', 'max:100', 'regex:/^\d+(\.\d{1,2})?$/'],

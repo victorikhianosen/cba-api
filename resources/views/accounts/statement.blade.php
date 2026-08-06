@@ -61,13 +61,11 @@
 
     <table class="summary">
         <tr>
-            <td class="label">Opening Balance</td>
             <td class="label">Total Debit</td>
             <td class="label">Total Credit</td>
             <td class="label">Closing Balance</td>
         </tr>
         <tr>
-            <td class="value">{{ $currencySymbol }}{{ $openingBalance }}</td>
             <td class="value">{{ $currencySymbol }}{{ $totalDebit }}</td>
             <td class="value">{{ $currencySymbol }}{{ $totalCredit }}</td>
             <td class="value">{{ $currencySymbol }}{{ $closingBalance }}</td>
@@ -86,10 +84,6 @@
             </tr>
         </thead>
         <tbody>
-            <tr class="opening">
-                <td colspan="5">Opening Balance</td>
-                <td class="amount">{{ $currencySymbol }}{{ $openingBalance }}</td>
-            </tr>
             @forelse($transactions as $row)
                 <tr>
                     <td class="col-date">{{ $row['date'] }}<span class="time">{{ $row['time'] }}</span></td>

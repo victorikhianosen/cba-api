@@ -22,7 +22,7 @@ return new class extends Migration
             $table->foreignId('currency_id')->constrained('currencies')->restrictOnDelete();
             $table->string('currency_code', 3);
 
-            $table->decimal('interest_rate', 19, 6)->default(0);
+            $table->decimal('interest_rate', 19, 2)->default(0);
 
             // Menu of posting styles this product offers — the customer picks one when opening an investment.
             $table->json('allowed_interest_posting_periods')->nullable();
@@ -32,18 +32,19 @@ return new class extends Migration
             $table->unsignedInteger('min_tenure_days')->default(30);
             $table->unsignedInteger('max_tenure_days')->default(365);
 
-            $table->decimal('min_deposit_amount', 19, 6)->nullable();
-            $table->decimal('max_deposit_amount', 19, 6)->nullable();
+            $table->decimal('min_deposit_amount', 19, 2)->nullable();
+            $table->decimal('max_deposit_amount', 19, 2)->nullable();
 
             // Whether auto-renewal is offered at all — the customer picks simple vs compound
             // rollover for their own investment when they open it, not here.
             $table->boolean('auto_renew')->default(false);
             $table->boolean('allow_top_up')->default(false);
             $table->boolean('allow_partial_withdrawal')->default(false);
+            $table->decimal('minimum_retention_percentage', 5, 2)->nullable();
 
             $table->boolean('allow_early_liquidation')->default(true);
             $table->unsignedInteger('early_liquidation_lock_days')->nullable();
-            $table->decimal('early_liquidation_penalty_rate', 19, 6)->nullable();
+            $table->decimal('early_liquidation_penalty_rate', 19, 2)->nullable();
             $table->decimal('withholding_tax_rate', 19, 2)->nullable();
 
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();

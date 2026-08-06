@@ -22,7 +22,7 @@ return new class extends Migration
 
             $table->foreignId('currency_id')->constrained('currencies');
 
-            $table->decimal('amount', 20, 4);
+            $table->decimal('amount', 20, 2);
             $table->string('reason')->nullable();
             $table->text('remarks')->nullable();
 

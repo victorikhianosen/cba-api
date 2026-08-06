@@ -16,7 +16,7 @@ class FundGl extends Model
     protected function casts(): array
     {
         return [
-            'amount'      => 'decimal:4',
+            'amount'      => 'decimal:2',
             'status'      => FundGlStatus::class,
             'reviewed_at' => 'datetime',
             'approved_at' => 'datetime',

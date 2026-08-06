@@ -21,9 +21,9 @@ return new class extends Migration
             $table->string('currency_code', 3);
             $table->smallInteger('currency_digits')->default(2);
 
-            $table->decimal('interest_rate', 19, 6)->default(0);
-            $table->decimal('min_nominal_interest_rate_per_period', 19, 6)->nullable();
-            $table->decimal('max_nominal_interest_rate_per_period', 19, 6)->nullable();
+            $table->decimal('interest_rate', 19, 2)->default(0);
+            $table->decimal('min_nominal_interest_rate_per_period', 19, 2)->nullable();
+            $table->decimal('max_nominal_interest_rate_per_period', 19, 2)->nullable();
             $table->enum('interest_rate_frequency_type', ['per_day', 'per_week', 'per_month', 'per_year'])->nullable();
             $table->enum('interest_method', ['declining_balance', 'flat'])->nullable();
             $table->enum('interest_calculation_period_type', ['daily', 'same_as_repayment_period'])->nullable();

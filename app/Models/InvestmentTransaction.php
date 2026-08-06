@@ -14,8 +14,8 @@ class InvestmentTransaction extends Model
     protected function casts(): array
     {
         return [
-            'amount'                   => 'decimal:6',
-            'principal_balance_after'  => 'decimal:6',
+            'amount'                   => 'decimal:2',
+            'principal_balance_after'  => 'decimal:2',
         ];
     }
 

@@ -19,6 +19,7 @@ use App\Http\Controllers\Admin\FinancialTransactionController;
 use App\Http\Controllers\Admin\FundGlController;
 use App\Http\Controllers\Admin\GeneralLedgerController;
 use App\Http\Controllers\Admin\InvestmentController;
+use App\Http\Controllers\Admin\InvestmentPartialLiquidationController;
 use App\Http\Controllers\Admin\AccountStatementTemplateController;
 use App\Http\Controllers\Admin\InvestmentLetterTemplateController;
 use App\Http\Controllers\Admin\InvestmentProductController;
@@ -287,6 +288,16 @@ Route::middleware(['user'])->group(function () {
         Route::post('{id}/topup/approve', 'approveTopUp')->middleware(['permission:approve_investments', 'totp']);
         Route::post('{id}/topup/reject', 'rejectTopUp')->middleware('permission:approve_investments');
         Route::post('{id}/terminate', 'terminate')->middleware('permission:approve_investments');
+        Route::get('{id}/partial-liquidation/preview', [InvestmentPartialLiquidationController::class, 'previewForInvestment'])->middleware('permission:create_investments');
+        Route::post('{id}/partial-liquidation', [InvestmentPartialLiquidationController::class, 'store'])->middleware('permission:create_investments');
+    });
+
+    Route::prefix('investment-partial-liquidations')->controller(InvestmentPartialLiquidationController::class)->group(function () {
+        Route::get('/', 'index')->middleware('permission:view_investments');
+        Route::get('{id}', 'show')->middleware('permission:view_investments');
+        Route::get('{id}/preview-schedule', 'previewSchedule')->middleware('permission:approve_investments');
+        Route::post('{id}/approve', 'approve')->middleware(['permission:approve_investments', 'totp']);
+        Route::post('{id}/reject', 'reject')->middleware('permission:approve_investments');
     });
 
     Route::prefix('general-ledgers')->controller(GeneralLedgerController::class)->group(function () {

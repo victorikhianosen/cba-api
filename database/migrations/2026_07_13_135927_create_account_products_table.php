@@ -29,7 +29,7 @@ return new class extends Migration
 
             $table->string('currency_code', 3);
 
-            $table->decimal('interest_rate', 19, 6)
+            $table->decimal('interest_rate', 19, 2)
                 ->default(0);
 
             $table->enum('interest_type', [
@@ -60,10 +60,10 @@ return new class extends Migration
                 '365',
             ])->default('365');
 
-            $table->decimal('min_required_opening_balance', 19, 6)
+            $table->decimal('min_required_opening_balance', 19, 2)
                 ->default(0);
 
-            $table->decimal('min_required_balance', 19, 6)
+            $table->decimal('min_required_balance', 19, 2)
                 ->default(0);
 
             $table->boolean('enforce_min_required_balance')
@@ -82,10 +82,10 @@ return new class extends Migration
             $table->boolean('allow_overdraft')
                 ->default(false);
 
-            $table->decimal('overdraft_limit', 19, 6)
+            $table->decimal('overdraft_limit', 19, 2)
                 ->default(0);
 
-            $table->decimal('overdraft_interest_rate', 19, 6)
+            $table->decimal('overdraft_interest_rate', 19, 2)
                 ->default(0);
 
             $table->boolean('withhold_tax')
@@ -94,12 +94,12 @@ return new class extends Migration
             $table->unsignedInteger('dormancy_period_days')
                 ->default(365);
 
-            $table->decimal('withdrawal_fee_amount', 19, 6)->nullable();
+            $table->decimal('withdrawal_fee_amount', 19, 2)->nullable();
             $table->enum('withdrawal_fee_type', ['flat', 'percent_of_amount'])->nullable();
-            $table->decimal('annual_fee_amount', 19, 6)->nullable();
+            $table->decimal('annual_fee_amount', 19, 2)->nullable();
             $table->unsignedTinyInteger('annual_fee_on_month')->nullable();
             $table->unsignedTinyInteger('annual_fee_on_day')->nullable();
-            $table->decimal('min_balance_for_interest_calculation', 19, 6)->nullable();
+            $table->decimal('min_balance_for_interest_calculation', 19, 2)->nullable();
 
             $table->foreignId('created_by')
                 ->nullable()

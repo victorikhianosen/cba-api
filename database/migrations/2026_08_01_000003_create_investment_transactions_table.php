@@ -20,8 +20,8 @@ return new class extends Migration
                 'maturity_payout', 'renewal',
             ]);
 
-            $table->decimal('amount', 19, 6);
-            $table->decimal('principal_balance_after', 19, 6);
+            $table->decimal('amount', 19, 2);
+            $table->decimal('principal_balance_after', 19, 2);
 
             $table->foreignId('posting_id')->nullable()->constrained('postings')->nullOnDelete();
             $table->foreignId('investment_schedule_id')->nullable()->constrained('investment_schedules')->nullOnDelete();

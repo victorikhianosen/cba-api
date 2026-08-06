@@ -21,11 +21,11 @@ return new class extends Migration
             $table->unsignedInteger('installment_number');
             $table->date('due_date');
 
-            $table->decimal('opening_principal_balance', 19, 6);
-            $table->decimal('expected_interest_amount', 19, 6);
-            $table->decimal('closing_principal_balance', 19, 6);
+            $table->decimal('opening_principal_balance', 19, 2);
+            $table->decimal('expected_interest_amount', 19, 2);
+            $table->decimal('closing_principal_balance', 19, 2);
 
-            $table->decimal('paid_amount', 19, 6)->default(0);
+            $table->decimal('paid_amount', 19, 2)->default(0);
             $table->date('paid_date')->nullable();
             $table->enum('status', ['pending', 'paid', 'partial', 'missed'])->default('pending');
 

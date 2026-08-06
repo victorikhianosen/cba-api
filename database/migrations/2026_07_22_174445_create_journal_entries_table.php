@@ -22,9 +22,9 @@ return new class extends Migration
             $table->string('journal_reference')->nullable()->index();
             $table->foreignId('general_ledger_id')->constrained('general_ledgers');
             $table->enum('entry_type', ['debit', 'credit']);
-            $table->decimal('amount', 20, 4)->default(0);
-            $table->decimal('balance_before', 20, 4)->default(0);
-            $table->decimal('balance_after', 20, 4)->default(0);
+            $table->decimal('amount', 20, 2)->default(0);
+            $table->decimal('balance_before', 20, 2)->default(0);
+            $table->decimal('balance_after', 20, 2)->default(0);
             $table->foreignId('currency_id')->constrained('currencies');
             $table->string('cost_center')->nullable();
             $table->foreignId('branch_id')->nullable()->constrained('branches')->nullOnDelete();

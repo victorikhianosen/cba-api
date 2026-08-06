@@ -15,10 +15,10 @@ class CashierSession extends Model
     protected function casts(): array
     {
         return [
-            'opening_float_amount'     => 'decimal:6',
-            'expected_closing_balance' => 'decimal:6',
-            'counted_closing_amount'   => 'decimal:6',
-            'variance_amount'          => 'decimal:6',
+            'opening_float_amount'     => 'decimal:2',
+            'expected_closing_balance' => 'decimal:2',
+            'counted_closing_amount'   => 'decimal:2',
+            'variance_amount'          => 'decimal:2',
             'opened_at'                => 'datetime',
             'closed_at'                => 'datetime',
             'reconciled_at'            => 'datetime',

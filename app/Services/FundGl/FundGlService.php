@@ -79,7 +79,7 @@ class FundGlService
 
         $fundGl = DB::transaction(fn () => FundGl::create([
             'reference'             => ReferenceGenerator::generate('FGL'),
-            'transaction_reference' => ReferenceGenerator::generate('TXN'),
+            'transaction_reference' => ReferenceGenerator::generate('TRN'),
             'idempotency_key'       => (string) Str::uuid(),
             'source_id'             => $data['source_id'],
             'destination_id'        => $data['destination_id'],
@@ -360,6 +360,7 @@ class FundGlService
     private function recordFinancialTransaction(FundGl $fundGl, ?User $actor): FinancialTransaction
     {
         return FinancialTransaction::create([
+            'reference'             => ReferenceGenerator::generate('FRN'),
             'transaction_reference' => $fundGl->transaction_reference,
             'idempotency_key'       => $fundGl->idempotency_key,
             'module'                => 'fund_gls',

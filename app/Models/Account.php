@@ -15,9 +15,9 @@ class Account extends Model
     protected function casts(): array
     {
         return [
-            'account_balance'     => 'decimal:6',
-            'available_balance'   => 'decimal:6',
-            'lien_balance'        => 'decimal:6',
+            'account_balance'     => 'decimal:2',
+            'available_balance'   => 'decimal:2',
+            'lien_balance'        => 'decimal:2',
             'pnd'                 => 'boolean',
             'pnc'                 => 'boolean',
             'primary_account'     => 'boolean',

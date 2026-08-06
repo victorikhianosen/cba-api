@@ -285,6 +285,7 @@ class InvestmentService
                 'early_liquidation_lock_days'      => $product->early_liquidation_lock_days,
                 'early_liquidation_penalty_rate'   => $product->early_liquidation_penalty_rate,
                 'withholding_tax_rate'             => $product->withholding_tax_rate,
+                'minimum_retention_percentage'     => $product->minimum_retention_percentage,
                 'auto_renew'                       => $rolloverType !== null,
                 'rollover_type'                    => $rolloverType,
                 'status'                           => 'pending',

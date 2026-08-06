@@ -14,7 +14,7 @@ class AccountLien extends Model
     protected function casts(): array
     {
         return [
-            'amount'      => 'decimal:4',
+            'amount'      => 'decimal:2',
             'approved_at' => 'datetime',
             'rejected_at' => 'datetime',
             'released_at' => 'datetime',

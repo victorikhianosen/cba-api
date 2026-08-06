@@ -13,9 +13,9 @@ class Currency extends Model
     protected function casts(): array
     {
         return [
-            'buy_rate'         => 'decimal:6',
-            'sell_rate'        => 'decimal:6',
-            'exchange_rate'    => 'decimal:6',
+            'buy_rate'         => 'decimal:2',
+            'sell_rate'        => 'decimal:2',
+            'exchange_rate'    => 'decimal:2',
             'is_base_currency' => 'boolean',
         ];
     }

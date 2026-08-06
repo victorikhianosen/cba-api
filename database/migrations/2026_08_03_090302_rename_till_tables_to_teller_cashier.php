@@ -38,8 +38,8 @@ return new class extends Migration
             $table->foreignId('currency_id')->constrained('currencies')->restrictOnDelete();
 
             // Policy fields set directly at creation — no separate "product" entity.
-            $table->decimal('opening_float_ceiling_amount', 19, 6)->nullable();
-            $table->decimal('variance_tolerance_amount', 19, 6)->default(0);
+            $table->decimal('opening_float_ceiling_amount', 19, 2)->nullable();
+            $table->decimal('variance_tolerance_amount', 19, 2)->default(0);
             $table->boolean('requires_variance_approval')->default(true);
             $table->boolean('allows_teller_to_teller_transfer')->default(false);
 
@@ -91,19 +91,19 @@ return new class extends Migration
             $table->foreignId('closed_by')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('reconciled_by')->nullable()->constrained('users')->nullOnDelete();
 
-            $table->decimal('opening_float_amount', 19, 6);
+            $table->decimal('opening_float_amount', 19, 2);
             // The buy-from-vault posting that funded this session's opening float.
             $table->foreignId('opening_posting_id')->nullable()->constrained('postings')->nullOnDelete();
 
             // Maintained incrementally alongside every cashier_transactions row (opening
             // float + cash_buy - cash_sell), same discipline as accounts.account_balance
             // being updated incrementally rather than recomputed from history on read.
-            $table->decimal('expected_closing_balance', 19, 6)->default(0);
+            $table->decimal('expected_closing_balance', 19, 2)->default(0);
 
             // Physical cash count entered by the cashier at close.
-            $table->decimal('counted_closing_amount', 19, 6)->nullable();
+            $table->decimal('counted_closing_amount', 19, 2)->nullable();
             // counted_closing_amount - expected_closing_balance, signed (negative = shortage).
-            $table->decimal('variance_amount', 19, 6)->nullable();
+            $table->decimal('variance_amount', 19, 2)->nullable();
 
             // The sell-to-vault posting once reconciled and the excess cash is swept back.
             $table->foreignId('closing_posting_id')->nullable()->constrained('postings')->nullOnDelete();
@@ -139,11 +139,11 @@ return new class extends Migration
             $table->enum('counterparty_type', ['vault', 'teller'])->nullable();
             $table->unsignedBigInteger('counterparty_id')->nullable();
 
-            $table->decimal('amount', 19, 6);
+            $table->decimal('amount', 19, 2);
 
             // Denormalized teller balance immediately after this movement — same pattern as
             // PostingService::execute()'s counterparty snapshot, avoids recomputing history.
-            $table->decimal('running_balance', 19, 6);
+            $table->decimal('running_balance', 19, 2);
 
             $table->string('narration')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();

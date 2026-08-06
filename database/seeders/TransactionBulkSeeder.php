@@ -227,7 +227,7 @@ class TransactionBulkSeeder extends Seeder
             'account_id'                   => $accountId,
             'customer_id'                  => $account['customer_id'],
             'reference'                    => ReferenceGenerator::generate('TXN'),
-            'transaction_reference'        => ReferenceGenerator::generate('TXN'),
+            'transaction_reference'        => ReferenceGenerator::generate('TRN'),
             'type'                         => $type,
             'amount'                       => $amount,
             'module'                       => $category['module'],

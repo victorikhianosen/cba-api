@@ -15,6 +15,7 @@ return new class extends Migration
     {
          Schema::create('financial_transactions', function (Blueprint $table) {
             $table->id();
+            $table->string('reference')->nullable()->unique();
             $table->string('transaction_reference')->unique();
             $table->string('idempotency_key')->unique();
             $table->foreignId('posting_id')->nullable()->constrained('postings')->nullOnDelete();
@@ -27,13 +28,13 @@ return new class extends Migration
             $table->string('provider_reference')->nullable();
             $table->foreignId('customer_id')->nullable()->constrained('customers')->nullOnDelete();
             $table->foreignId('branch_id')->nullable()->constrained('branches')->nullOnDelete();
-            $table->decimal('amount', 20, 4)->default(0);
-            $table->decimal('fee', 20, 4)->default(0);
-            $table->decimal('commission', 20, 4)->default(0);
-            $table->decimal('vat', 20, 4)->default(0);
-            $table->decimal('discount', 20, 4)->default(0);
+            $table->decimal('amount', 20, 2)->default(0);
+            $table->decimal('fee', 20, 2)->default(0);
+            $table->decimal('commission', 20, 2)->default(0);
+            $table->decimal('vat', 20, 2)->default(0);
+            $table->decimal('discount', 20, 2)->default(0);
             $table->foreignId('currency_id')->constrained('currencies');
-            $table->decimal('exchange_rate', 20, 8)->default(1);
+            $table->decimal('exchange_rate', 20, 2)->default(1);
             $table->string('status')->default('pending');
             $table->boolean('is_reversed')->default(false);
             $table->foreignId('reversal_transaction_id')->nullable()->constrained('financial_transactions')->nullOnDelete();

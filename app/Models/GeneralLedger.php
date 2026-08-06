@@ -16,7 +16,7 @@ class GeneralLedger extends Model
     protected function casts(): array
     {
         return [
-            'balance'                        => 'decimal:6',
+            'balance'                        => 'decimal:2',
             'manual_journal_entries_allowed' => 'boolean',
             'is_assigned'                    => 'boolean',
         ];

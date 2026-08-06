@@ -19,9 +19,9 @@ return new class extends Migration
             $table->string('name')->unique();
             $table->string('symbol', 10)->nullable()->unique();
 
-            $table->decimal('buy_rate', 15, 6)->nullable();
-            $table->decimal('sell_rate', 15, 6)->nullable();
-            $table->decimal('exchange_rate', 15, 6)->default(1);
+            $table->decimal('buy_rate', 15, 2)->nullable();
+            $table->decimal('sell_rate', 15, 2)->nullable();
+            $table->decimal('exchange_rate', 15, 2)->default(1);
 
             $table->boolean('is_base_currency')->default(false);
 

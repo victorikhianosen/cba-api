@@ -15,7 +15,7 @@ return new class extends Migration
             // active, funded investment the whole time) — these three columns are the
             // "is there a top-up awaiting approval" state instead. Cleared back to null once
             // approved or rejected.
-            $table->decimal('pending_topup_amount', 19, 6)->nullable()->after('total_top_up_amount');
+            $table->decimal('pending_topup_amount', 19, 2)->nullable()->after('total_top_up_amount');
             $table->foreignId('pending_topup_requested_by')->nullable()->after('pending_topup_amount')->constrained('users')->nullOnDelete();
             $table->timestamp('pending_topup_requested_at')->nullable()->after('pending_topup_requested_by');
         });

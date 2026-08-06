@@ -23,19 +23,20 @@ return new class extends Migration
 
             $table->string('account_number', 20)->unique();
 
-            $table->decimal('principal_amount', 19, 6);
+            $table->decimal('principal_amount', 19, 2);
 
             // Snapshot of the product's terms at creation — locked so a later product edit
             // can't retroactively change an existing customer's deal.
-            $table->decimal('interest_rate', 19, 6);
+            $table->decimal('interest_rate', 19, 2);
             $table->enum('interest_posting_period', [
                 'upfront', 'daily', 'weekly', 'monthly', 'quarterly', 'bi_annually', 'annually', 'bullet',
             ]);
             // Always in days.
             $table->unsignedInteger('tenure');
             $table->unsignedInteger('early_liquidation_lock_days')->nullable();
-            $table->decimal('early_liquidation_penalty_rate', 19, 6)->nullable();
+            $table->decimal('early_liquidation_penalty_rate', 19, 2)->nullable();
             $table->decimal('withholding_tax_rate', 19, 2)->nullable();
+            $table->decimal('minimum_retention_percentage', 5, 2)->nullable();
 
             // Set on approval, not creation — the term hasn't started until money has moved.
             $table->date('start_date')->nullable();
@@ -61,17 +62,17 @@ return new class extends Migration
             // Running financial position — materialized so the current state is always available
             // without recalculating from investment_transactions history on every read.
             // Null until the funding posting is approved and the term actually starts.
-            $table->decimal('current_principal', 19, 6)->nullable();
-            $table->decimal('total_top_up_amount', 19, 6)->default(0);
-            $table->decimal('total_withdrawal_amount', 19, 6)->default(0);
-            $table->decimal('total_interest_accrued', 19, 6)->default(0);
-            $table->decimal('total_interest_paid', 19, 6)->default(0);
-            $table->decimal('outstanding_interest', 19, 6)->default(0);
-            $table->decimal('total_fees_charged', 19, 6)->default(0);
-            $table->decimal('total_penalties_charged', 19, 6)->default(0);
-            $table->decimal('total_withholding_tax_deducted', 19, 6)->default(0);
-            $table->decimal('net_interest_paid', 19, 6)->default(0);
-            $table->decimal('maturity_value', 19, 6)->nullable();
+            $table->decimal('current_principal', 19, 2)->nullable();
+            $table->decimal('total_top_up_amount', 19, 2)->default(0);
+            $table->decimal('total_withdrawal_amount', 19, 2)->default(0);
+            $table->decimal('total_interest_accrued', 19, 2)->default(0);
+            $table->decimal('total_interest_paid', 19, 2)->default(0);
+            $table->decimal('outstanding_interest', 19, 2)->default(0);
+            $table->decimal('total_fees_charged', 19, 2)->default(0);
+            $table->decimal('total_penalties_charged', 19, 2)->default(0);
+            $table->decimal('total_withholding_tax_deducted', 19, 2)->default(0);
+            $table->decimal('net_interest_paid', 19, 2)->default(0);
+            $table->decimal('maturity_value', 19, 2)->nullable();
             $table->date('last_interest_payment_date')->nullable();
             $table->date('next_interest_payment_date')->nullable();
 

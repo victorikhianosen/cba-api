@@ -34,12 +34,12 @@ return new class extends Migration
                 ->nullable()
                 ->constrained('account_tiers');
 
-            $table->decimal('account_balance', 19, 6)
+            $table->decimal('account_balance', 19, 2)
                 ->default(0);
 
-            $table->decimal('available_balance', 19, 6)
+            $table->decimal('available_balance', 19, 2)
                 ->default(0);
-            $table->decimal('lien_balance', 19, 6)
+            $table->decimal('lien_balance', 19, 2)
                 ->default(0);
 
             $table->string('account_name');
