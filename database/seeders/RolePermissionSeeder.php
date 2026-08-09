@@ -40,6 +40,7 @@ class RolePermissionSeeder extends Seeder
         'operate_teller',              // cashier-facing: open/close/buy/sell/deposit/request-withdrawal — granted to the cashier role
         'approve_cashier_variance',    // second-admin sign-off on an out-of-tolerance teller reconciliation — NOT granted to cashier
         'approve_teller_withdrawal',   // second-admin sign-off on a customer cash withdrawal — NOT granted to cashier
+        'view_settings', 'update_settings',
     ];
 
     public function run(): void

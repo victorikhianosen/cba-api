@@ -35,7 +35,7 @@
                         <td style="padding:36px 32px; color:#334155; font-family:'Segoe UI', Arial, sans-serif; font-size:15px; line-height:1.65;">
 
                             <div>
-                                {!! $content !!}
+                                {!! nl2br(e($content)) !!}
                             </div>
 
                             <!-- Divider -->

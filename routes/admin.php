@@ -30,6 +30,7 @@ use App\Http\Controllers\Admin\PermissionController;
 use App\Http\Controllers\Admin\PostingController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\CashierSessionController;
+use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\StatusController;
 use App\Http\Controllers\Admin\TellerController;
 use App\Http\Controllers\Admin\TransactionController;
@@ -43,7 +44,22 @@ Route::prefix('auth')->controller(AuthController::class)->group(function () {
     Route::post('2fa/verify', 'verifyTwoFactor')->middleware('throttle:login');
 });
 
+// Reachable even while the session is locked: unlocking itself, checking lock config,
+// app-shell branding, and logout — everything else authenticated lives in the
+// 'session.lock'-gated group below.
 Route::middleware(['user'])->group(function () {
+    Route::prefix('session')->controller(AuthController::class)->group(function () {
+        Route::get('lock-config', 'lockConfig');
+        Route::post('lock', 'lockSession');
+        Route::post('unlock', 'unlockSession');
+    });
+
+    Route::get('settings/branding', [SettingController::class, 'branding']);
+
+    Route::post('auth/logout', [AuthController::class, 'logout']);
+});
+
+Route::middleware(['user', 'session.lock'])->group(function () {
     Route::prefix('banks')->controller(BankController::class)->group(function () {
         Route::get('/', 'index')->middleware('permission:view_banks');
         Route::post('/', 'store')->middleware('permission:create_banks');
@@ -378,12 +394,18 @@ Route::middleware(['user'])->group(function () {
 
     Route::prefix('auth')->controller(AuthController::class)->group(function () {
         Route::get('me', 'me');
-        Route::post('logout', 'logout');
         Route::post('session-timeout', 'sessionTimeout');
     });
 
     Route::prefix('user-journeys')->controller(UserJourneyController::class)->group(function () {
         Route::get('/', 'index')->middleware('permission:view_user_journeys');
         Route::get('{sessionId}', 'show')->middleware('permission:view_user_journeys');
+    });
+
+    Route::prefix('settings')->controller(SettingController::class)->group(function () {
+        Route::get('/', 'index')->middleware('permission:view_settings');
+        Route::get('{key}', 'show')->middleware('permission:view_settings');
+        Route::put('{key}', 'update')->middleware('permission:update_settings');
+        Route::post('{key}/upload', 'uploadImage')->middleware('permission:update_settings');
     });
 });

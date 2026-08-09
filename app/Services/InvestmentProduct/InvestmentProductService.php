@@ -11,6 +11,7 @@ use App\Models\GeneralLedger;
 use App\Models\InvestmentProduct;
 use App\Models\ProductToGlAccountMapping;
 use App\Services\Audit\AuditService;
+use App\Services\Notification\NotificationService;
 use App\Services\Storage\FileStorageService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
@@ -25,6 +26,7 @@ class InvestmentProductService
     public function __construct(
         private AuditService $audit,
         private FileStorageService $files,
+        private NotificationService $notifications,
     ) {}
 
     public function list(int $perPage = 15): LengthAwarePaginator
@@ -84,6 +86,14 @@ class InvestmentProductService
             auditable: $investmentProduct,
             after: $investmentProduct->toArray(),
             description: "Investment product '{$investmentProduct->name}' ({$investmentProduct->code}) was created by '{$actor?->username}'.",
+        );
+
+        $this->notifications->notifyPermission(
+            'approve_investment_products',
+            'investment_products',
+            $investmentProduct->id,
+            'New investment product request',
+            "Investment product '{$investmentProduct->name}' ({$investmentProduct->code}) is awaiting your approval.",
         );
 
         return $investmentProduct;

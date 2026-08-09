@@ -11,6 +11,7 @@ use App\Models\GeneralLedger;
 use App\Models\LoanProduct;
 use App\Models\ProductToGlAccountMapping;
 use App\Services\Audit\AuditService;
+use App\Services\Notification\NotificationService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +23,7 @@ class LoanProductService
 
     public function __construct(
         private AuditService $audit,
+        private NotificationService $notifications,
     ) {}
 
     public function list(int $perPage = 15): LengthAwarePaginator
@@ -78,6 +80,14 @@ class LoanProductService
             auditable: $loanProduct,
             after: $loanProduct->toArray(),
             description: "Loan product '{$loanProduct->name}' ({$loanProduct->code}) was created by '{$actor?->username}'.",
+        );
+
+        $this->notifications->notifyPermission(
+            'approve_loan_products',
+            'loan_products',
+            $loanProduct->id,
+            'New loan product request',
+            "Loan product '{$loanProduct->name}' ({$loanProduct->code}) is awaiting your approval.",
         );
 
         return $loanProduct;

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\CheckPermissionMiddleware;
+use App\Http\Middleware\CheckSessionLockMiddleware;
 use App\Http\Middleware\CustomerMiddleware;
 use App\Http\Middleware\GlobalLogger;
 use App\Http\Middleware\JourneyLogger;
@@ -39,10 +40,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->append(JourneyLogger::class);
 
         $middleware->alias([
-            'permission' => CheckPermissionMiddleware::class,
-            'user'       => UserMiddleware::class,
-            'customer'   => CustomerMiddleware::class,
-            'totp'       => RequireTotpMiddleware::class,
+            'permission'   => CheckPermissionMiddleware::class,
+            'user'         => UserMiddleware::class,
+            'customer'     => CustomerMiddleware::class,
+            'totp'         => RequireTotpMiddleware::class,
+            'session.lock' => CheckSessionLockMiddleware::class,
         ]);
 
     })

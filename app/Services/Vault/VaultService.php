@@ -11,6 +11,7 @@ use App\Models\Branch;
 use App\Models\Vault;
 use App\Services\Audit\AuditService;
 use App\Services\GeneralLedger\GeneralLedgerService;
+use App\Services\Notification\NotificationService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -21,6 +22,7 @@ class VaultService
     public function __construct(
         private AuditService $audit,
         private GeneralLedgerService $generalLedgers,
+        private NotificationService $notifications,
     ) {}
 
     public function list(int $perPage = 15): LengthAwarePaginator
@@ -85,6 +87,14 @@ class VaultService
             auditable: $vault,
             after: $vault->toArray(),
             description: "Vault '{$vault->name}' ({$vault->code}) was created by '{$actor?->username}'.",
+        );
+
+        $this->notifications->notifyPermission(
+            'approve_vaults',
+            'vaults',
+            $vault->id,
+            'New vault request',
+            "Vault '{$vault->name}' ({$vault->code}) is awaiting your approval.",
         );
 
         return $vault->load(['branch', 'currency', 'generalLedger']);

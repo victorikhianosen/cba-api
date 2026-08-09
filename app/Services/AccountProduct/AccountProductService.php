@@ -11,6 +11,7 @@ use App\Models\Currency;
 use App\Models\GeneralLedger;
 use App\Models\ProductToGlAccountMapping;
 use App\Services\Audit\AuditService;
+use App\Services\Notification\NotificationService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -28,6 +29,7 @@ class AccountProductService
 
     public function __construct(
         private AuditService $audit,
+        private NotificationService $notifications,
     ) {}
 
     /** @param string|string[]|null $productType */
@@ -92,6 +94,14 @@ class AccountProductService
             auditable: $accountProduct,
             after: $accountProduct->toArray(),
             description: "Account product '{$accountProduct->name}' ({$accountProduct->code}) was created by '{$actor?->username}'.",
+        );
+
+        $this->notifications->notifyPermission(
+            'approve_account_products',
+            'account_products',
+            $accountProduct->id,
+            'New account product request',
+            "Account product '{$accountProduct->name}' ({$accountProduct->code}) is awaiting your approval.",
         );
 
         return $accountProduct;

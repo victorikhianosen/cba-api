@@ -13,6 +13,7 @@ use App\Models\Teller;
 use App\Models\Vault;
 use App\Services\Audit\AuditService;
 use App\Services\GeneralLedger\GeneralLedgerService;
+use App\Services\Notification\NotificationService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +24,7 @@ class TellerService
     public function __construct(
         private AuditService $audit,
         private GeneralLedgerService $generalLedgers,
+        private NotificationService $notifications,
     ) {}
 
     public function list(int $perPage = 15): LengthAwarePaginator
@@ -118,6 +120,14 @@ class TellerService
             auditable: $teller,
             after: $teller->toArray(),
             description: "Teller '{$teller->name}' ({$teller->code}) was created by '{$actor?->username}'.",
+        );
+
+        $this->notifications->notifyPermission(
+            'approve_tellers',
+            'tellers',
+            $teller->id,
+            'New teller request',
+            "Teller '{$teller->name}' ({$teller->code}) is awaiting your approval.",
         );
 
         return $teller->load(['branch', 'vault', 'currency', 'generalLedger', 'customerCashGeneralLedger']);

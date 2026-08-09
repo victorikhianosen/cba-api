@@ -7,6 +7,7 @@ namespace App\Services\User;
 use App\Models\User;
 use App\Services\Audit\AuditService;
 use App\Services\Journey\JourneyService;
+use App\Services\Setting\SettingService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -25,6 +26,7 @@ class AuthService
         private AuditService $audit,
         private Google2FA $google2fa,
         private JourneyService $journeys,
+        private SettingService $settings,
     ) {}
 
     // Hands back a two-factor challenge instead of an access token — new users get a QR code to scan, returning users just get asked for the code.
@@ -56,6 +58,29 @@ class AuthService
             throw ValidationException::withMessages([
                 'username' => ['This account is not active. Please contact your administrator.'],
             ]);
+        }
+
+        // security.authentication.google_auth_unlock off: skip the 2FA challenge entirely
+        // and issue a real access token straight away, same shape verifyTwoFactor() returns
+        // — so login()'s two response shapes are distinguished purely by the presence of
+        // `token`, and every downstream consumer (frontend, this class's own callers)
+        // already knows how to handle that shape.
+        if (! $this->settings->get('security.authentication.google_auth_unlock', true)) {
+            $newToken = $user->createToken('api-token');
+
+            $this->audit->log(
+                action: 'login',
+                module: 'auth',
+                auditable: $user,
+                description: "User '{$user->username}' ({$user->code}) logged in successfully (Google Authenticator not required).",
+            );
+
+            $this->journeys->recordLogin($user, (string) $newToken->accessToken->getKey());
+
+            return [
+                'user'  => $user->load(['roles', 'permissions']),
+                'token' => $newToken->plainTextToken,
+            ];
         }
 
         $twoFactorToken = $this->issueTwoFactorToken($user);

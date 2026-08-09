@@ -20,10 +20,11 @@ use Illuminate\Validation\ValidationException;
 
 class InvestmentService
 {
-    // Fixed prefix, distinct from AccountService::ACCOUNT_NUMBER_PREFIX_BY_PRODUCT_TYPE
-    // (1=savings, 2=current, 3=domiciliary, 9=fallback) — investments are never opened
-    // through that map, so a dedicated digit avoids any future collision.
-    private const ACCOUNT_NUMBER_PREFIX = '4';
+    // No fixed prefix — investment account_number lives in its own column, so it can't
+    // collide with AccountService::ACCOUNT_NUMBER_PREFIX_BY_PRODUCT_TYPE regardless. Kept
+    // as a constant (rather than inlined '') so a prefix can be reintroduced in one place
+    // if ever needed.
+    private const ACCOUNT_NUMBER_PREFIX = '';
 
     public function __construct(
         private AuditService $audit,
@@ -936,8 +937,8 @@ class InvestmentService
             ->orderByDesc('account_number')
             ->value('account_number');
 
-        $nextSequence = $lastNumber ? ((int) substr($lastNumber, 1)) + 1 : 1;
+        $nextSequence = $lastNumber ? ((int) substr($lastNumber, strlen(self::ACCOUNT_NUMBER_PREFIX))) + 1 : 1;
 
-        return self::ACCOUNT_NUMBER_PREFIX . str_pad((string) $nextSequence, 9, '0', STR_PAD_LEFT);
+        return self::ACCOUNT_NUMBER_PREFIX . str_pad((string) $nextSequence, 10, '0', STR_PAD_LEFT);
     }
 }
