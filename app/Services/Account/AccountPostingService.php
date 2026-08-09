@@ -67,6 +67,15 @@ class AccountPostingService
             ]);
         }
 
+        // A virtual account is a pure collection endpoint — it always holds ₦0 and is never
+        // debited directly; outbound movement only ever happens from its parent settlement
+        // account. This is a defensive guard, not something the normal flow ever triggers.
+        if ($debitCredit === DebitCredit::DEBIT && $account->accountProduct?->product_type === 'virtual') {
+            throw ValidationException::withMessages([
+                'account_id' => ["Virtual account '{$account->account_number}' cannot be debited directly."],
+            ]);
+        }
+
         if ((int) $account->currency_id !== (int) $leg['currency_id']) {
             throw ValidationException::withMessages([
                 'currency_id' => ["Account '{$account->account_number}' currency does not match the posting currency."],

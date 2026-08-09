@@ -22,6 +22,7 @@ class RolePermissionSeeder extends Seeder
         'view_currencies', 'update_currencies', 'delete_currencies',
         'view_customers', 'create_customers', 'update_customers', 'delete_customers',
         'view_accounts', 'create_accounts', 'update_accounts',
+        'view_virtual_accounts', 'create_virtual_accounts', 'update_virtual_accounts', 'credit_virtual_accounts',
         'view_liens', 'create_liens', 'approve_liens',
         'view_account_officers', 'create_account_officers', 'update_account_officers', 'delete_account_officers',
         'view_account_tiers', 'create_account_tiers', 'update_account_tiers',

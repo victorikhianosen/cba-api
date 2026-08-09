@@ -44,6 +44,6 @@ class GeneralLedger extends Model
 
     public function productMapping(): HasOne
     {
-        return $this->hasOne(ProductToGlAccountMapping::class);
+        return $this->hasOne(ProductGlMapping::class);
     }
 }

@@ -9,7 +9,7 @@ use App\Enums\Product\AccountProductType;
 use App\Models\AccountProduct;
 use App\Models\Currency;
 use App\Models\GeneralLedger;
-use App\Models\ProductToGlAccountMapping;
+use App\Models\ProductGlMapping;
 use App\Services\Audit\AuditService;
 use App\Services\Notification\NotificationService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -25,6 +25,8 @@ class AccountProductService
         'merchant'    => 'MCH',
         'corporate'   => 'COR',
         'domiciliary' => 'DOM',
+        'wallet'      => 'WAL',
+        'virtual'     => 'VIR',
     ];
 
     public function __construct(
@@ -62,7 +64,12 @@ class AccountProductService
         $accountProduct = DB::transaction(function () use ($data) {
             $currency = Currency::findOrFail($data['currency_id']);
 
-            $this->assertGeneralLedgerMappingsAreValid($data['general_ledgers'], $currency, $data['allow_overdraft'] ?? false);
+            $this->assertGeneralLedgerMappingsAreValid($data['general_ledgers'], $currency, $data['allow_overdraft'] ?? false, $data['product_type'] ?? '');
+
+            if (($data['product_type'] ?? null) === 'virtual') {
+                $data['interest_rate']   = 0;
+                $data['allow_overdraft'] = false;
+            }
 
             $generalLedgers = $data['general_ledgers'];
             unset($data['general_ledgers']);
@@ -205,7 +212,7 @@ class AccountProductService
         );
     }
 
-    private function assertGeneralLedgerMappingsAreValid(array $mappings, Currency $productCurrency, bool $allowOverdraft = false): void
+    private function assertGeneralLedgerMappingsAreValid(array $mappings, Currency $productCurrency, bool $allowOverdraft = false, string $productType = ''): void
     {
         $providedTypes = collect($mappings)->pluck('financial_account_type');
 
@@ -217,7 +224,7 @@ class AccountProductService
             }
         }
 
-        foreach ($this->requiredFinancialAccountTypes($allowOverdraft) as $type) {
+        foreach ($this->requiredFinancialAccountTypes($allowOverdraft, $productType) as $type) {
             if (! $providedTypes->contains($type->name)) {
                 throw ValidationException::withMessages([
                     'general_ledgers' => ["{$type->label()} GL mapping is required."],
@@ -250,7 +257,7 @@ class AccountProductService
                 ]);
             }
 
-            if (ProductToGlAccountMapping::where('general_ledger_id', $ledger->id)->exists()) {
+            if (ProductGlMapping::where('general_ledger_id', $ledger->id)->exists()) {
                 throw ValidationException::withMessages([
                     'general_ledgers' => ["General ledger '" . str_replace('_', ' ', $ledger->name) . "' is already used by another product."],
                 ]);
@@ -259,12 +266,16 @@ class AccountProductService
     }
 
     /** @return AccountProductType[] */
-    private function requiredFinancialAccountTypes(bool $allowOverdraft = false): array
+    private function requiredFinancialAccountTypes(bool $allowOverdraft = false, string $productType = ''): array
     {
         $required = AccountProductType::required();
 
         if ($allowOverdraft) {
             $required[] = AccountProductType::OVERDRAFT_PORTFOLIO_CONTROL;
+        }
+
+        if ($productType === 'virtual') {
+            $required[] = AccountProductType::VIRTUAL_ACCOUNT_COLLECTIONS;
         }
 
         return $required;

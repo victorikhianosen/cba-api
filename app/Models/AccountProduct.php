@@ -49,6 +49,6 @@ class AccountProduct extends Model
 
     public function generalLedgerMappings(): MorphMany
     {
-        return $this->morphMany(ProductToGlAccountMapping::class, 'product');
+        return $this->morphMany(ProductGlMapping::class, 'product');
     }
 }

@@ -24,6 +24,10 @@ class AccountProductSeeder extends Seeder
         $this->seedSavingsProduct($ngn);
         $this->seedCurrentProduct($ngn);
         $this->seedDomiciliaryProduct($usd);
+        $this->seedWalletProduct($ngn);
+        $this->seedVirtualProduct($ngn);
+        $this->seedWalletProduct($usd, 'USD ');
+        $this->seedVirtualProduct($usd, 'USD ');
 
         // Known pre-existing issue: AccountProductService::assertGeneralLedgerMappingsAreValid()
         // only accepts AccountProductType roles, but seedLoanProduct() maps
@@ -119,6 +123,73 @@ class AccountProductSeeder extends Seeder
                 'INCOME_FROM_FEES'      => 'usd_domiciliary_income_from_fees',
                 'INCOME_FROM_PENALTIES' => 'usd_domiciliary_income_from_penalties',
                 'TRANSFERS_SUSPENSE'    => 'usd_domiciliary_transfers_suspense',
+            ]),
+        ]);
+
+        app(AccountProductService::class)->approve($accountProduct);
+    }
+
+    // $glPrefix mirrors the "USD " convention already used for Domiciliary's GLs — the
+    // same product type can be seeded once per currency, each with its own dedicated GLs
+    // (a GL can only be mapped to one product), so Wallet/Virtual are just as multi-currency
+    // as every other deposit product here, not NGN-only.
+    private function seedWalletProduct(Currency $currency, string $glPrefix = ''): void
+    {
+        $name = trim("{$glPrefix}Digital Wallet Account");
+
+        if (AccountProduct::where('name', $name)->exists()) {
+            return;
+        }
+
+        $glKey = fn (string $suffix) => strtolower(str_replace(' ', '_', trim("{$glPrefix}{$suffix}")));
+
+        $accountProduct = app(AccountProductService::class)->create([
+            'name'                         => $name,
+            'product_type'                 => 'wallet',
+            'description'                  => 'General-purpose digital wallet product — the typical settlement/parent account for a customer\'s virtual accounts.',
+            'currency_id'                  => $currency->id,
+            'interest_rate'                => 0,
+            'min_required_opening_balance' => 0,
+            'min_required_balance'         => 0,
+            'general_ledgers'              => $this->mappingsFor(AccountProductType::required(), [
+                'ACCOUNT_CONTROL'       => $glKey('Wallet Account Control'),
+                'INTEREST_ON_ACCOUNT'   => $glKey('Interest On Wallet Account'),
+                'INCOME_FROM_FEES'      => $glKey('Wallet Account Income From Fees'),
+                'INCOME_FROM_PENALTIES' => $glKey('Wallet Account Income From Penalties'),
+                'TRANSFERS_SUSPENSE'    => $glKey('Wallet Account Transfers Suspense'),
+            ]),
+        ]);
+
+        app(AccountProductService::class)->approve($accountProduct);
+    }
+
+    private function seedVirtualProduct(Currency $currency, string $glPrefix = ''): void
+    {
+        $name = trim("{$glPrefix}Virtual Collection Account");
+
+        if (AccountProduct::where('name', $name)->exists()) {
+            return;
+        }
+
+        $glKey = fn (string $suffix) => strtolower(str_replace(' ', '_', trim("{$glPrefix}{$suffix}")));
+        $roles = [...AccountProductType::required(), AccountProductType::VIRTUAL_ACCOUNT_COLLECTIONS];
+
+        $accountProduct = app(AccountProductService::class)->create([
+            'name'                         => $name,
+            'product_type'                 => 'virtual',
+            'description'                  => 'Dedicated virtual/collection sub-account product (Paystack/Monnify-style) — balances auto-sweep to a designated parent settlement account.',
+            'currency_id'                  => $currency->id,
+            'interest_rate'                => 0,
+            'allow_overdraft'              => false,
+            'min_required_opening_balance' => 0,
+            'min_required_balance'         => 0,
+            'general_ledgers'              => $this->mappingsFor($roles, [
+                'ACCOUNT_CONTROL'             => $glKey('Virtual Account Control'),
+                'INTEREST_ON_ACCOUNT'         => $glKey('Interest On Virtual Account'),
+                'INCOME_FROM_FEES'            => $glKey('Virtual Account Income From Fees'),
+                'INCOME_FROM_PENALTIES'       => $glKey('Virtual Account Income From Penalties'),
+                'TRANSFERS_SUSPENSE'          => $glKey('Virtual Account Transfers Suspense'),
+                'VIRTUAL_ACCOUNT_COLLECTIONS' => $glKey('Virtual Account Collections'),
             ]),
         ]);
 

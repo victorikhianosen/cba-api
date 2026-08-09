@@ -16,6 +16,7 @@ enum AccountProductType: int
     case INCOME_FROM_INTEREST = 7;
     case LOSSES_WRITTEN_OFF = 8;
     case ESCHEAT_LIABILITY = 9;
+    case VIRTUAL_ACCOUNT_COLLECTIONS = 10;
 
     public function label(): string
     {
@@ -29,6 +30,7 @@ enum AccountProductType: int
             self::INCOME_FROM_INTEREST => 'Income from Interest',
             self::LOSSES_WRITTEN_OFF => 'Losses Written Off',
             self::ESCHEAT_LIABILITY => 'Escheat Liability',
+            self::VIRTUAL_ACCOUNT_COLLECTIONS => 'Virtual Account Collections',
         };
     }
 

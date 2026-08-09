@@ -38,6 +38,8 @@ class AccountService
         'savings'     => '1',
         'current'     => '2',
         'domiciliary' => '3',
+        'wallet'      => '4',
+        'virtual'     => '5',
     ];
 
     public function __construct(
@@ -317,6 +319,37 @@ class AccountService
                 . "Account Number: <strong>{$account->account_number}</strong><br><br>"
                 . "Thank you for banking with us.",
         );
+    }
+
+    // Opens the underlying `accounts` row for a Virtual Account. Reuses the same locked,
+    // retry-on-collision number generation every other account type uses — kept here
+    // rather than duplicated in VirtualAccountService so there's exactly one place that
+    // ever generates an account number. account_name follows the Paystack/PiggyVest
+    // dedicated-virtual-account convention of "{parent}/{beneficiary label}" (e.g.
+    // "Victor Ikhianosen / Till 1") so the parent identity is visible at a glance —
+    // one customer can hold many VAs, so the label alone isn't enough context.
+    public function openVirtualAccountForCustomer(Customer $customer, AccountProduct $accountProduct, Account $parentAccount, string $beneficiaryName): Account
+    {
+        return $this->transactionWithAccountNumberRetry(function () use ($customer, $accountProduct, $parentAccount, $beneficiaryName) {
+            $actor = Auth::guard('user')->user();
+
+            return Account::create([
+                'customer_id'        => $customer->id,
+                'account_product_id' => $accountProduct->id,
+                'currency_id'        => $accountProduct->currency_id,
+                'account_tier_id'    => $parentAccount->account_tier_id,
+                'account_name'       => $this->virtualAccountName($parentAccount, $beneficiaryName),
+                'account_number'     => $this->generateUniqueAccountNumber($accountProduct->product_type),
+                'primary_account'    => false,
+                'status'             => 'active',
+                'created_by'         => $actor?->id,
+            ])->refresh();
+        });
+    }
+
+    public function virtualAccountName(Account $parentAccount, string $beneficiaryName): string
+    {
+        return "{$parentAccount->account_name} / {$beneficiaryName}";
     }
 
     public function updateStatus(int $id, string $status): Account

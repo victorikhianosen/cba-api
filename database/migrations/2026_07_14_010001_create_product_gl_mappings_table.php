@@ -16,7 +16,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('product_to_gl_account_mappings', function (Blueprint $table) {
+        Schema::create('product_gl_mappings', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('product_id');
             $table->string('product_type');
@@ -32,6 +32,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('product_to_gl_account_mappings');
+        Schema::dropIfExists('product_gl_mappings');
     }
 };

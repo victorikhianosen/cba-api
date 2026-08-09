@@ -18,7 +18,7 @@ class StoreCustomerAccountRequest extends FormRequest
     {
         return [
             'account_product_id' => ['required', 'integer', 'exists:account_products,id'],
-            'account_type'       => ['required', Rule::in(['savings', 'current', 'domiciliary'])],
+            'account_type'       => ['required', Rule::in(['savings', 'current', 'domiciliary', 'wallet'])],
             'account_tier_id'    => ['sometimes', 'nullable', 'integer', 'exists:account_tiers,id'],
         ];
     }

@@ -9,7 +9,7 @@ use App\Enums\Product\LoanProductFinancialAccountType;
 use App\Models\Currency;
 use App\Models\GeneralLedger;
 use App\Models\LoanProduct;
-use App\Models\ProductToGlAccountMapping;
+use App\Models\ProductGlMapping;
 use App\Services\Audit\AuditService;
 use App\Services\Notification\NotificationService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -236,7 +236,7 @@ class LoanProductService
                 ]);
             }
 
-            if (ProductToGlAccountMapping::where('general_ledger_id', $ledger->id)->exists()) {
+            if (ProductGlMapping::where('general_ledger_id', $ledger->id)->exists()) {
                 throw ValidationException::withMessages([
                     'general_ledgers' => ["General ledger '" . str_replace('_', ' ', $ledger->name) . "' is already used by another product."],
                 ]);

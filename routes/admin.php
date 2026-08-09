@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Admin\AccountController;
+use App\Http\Controllers\Admin\VirtualAccountController;
 use App\Http\Controllers\Admin\AccountLienController;
 use App\Http\Controllers\Admin\AccountOfficerController;
 use App\Http\Controllers\Admin\AccountProductController;
@@ -243,6 +244,8 @@ Route::middleware(['user', 'session.lock'])->group(function () {
         Route::put('{customerId}/documents/{documentId}', 'updateDocument')->middleware('permission:update_customers');
         Route::post('{id}/accounts', 'storeAccount')->middleware('permission:create_accounts');
         Route::post('{id}/accounts/status', 'updateAccountsStatus')->middleware('permission:update_customers');
+        Route::get('{id}/virtual-accounts', [VirtualAccountController::class, 'forCustomer'])->middleware('permission:view_virtual_accounts');
+        Route::post('{id}/virtual-accounts', [VirtualAccountController::class, 'store'])->middleware('permission:create_virtual_accounts');
         Route::post('{id}/reset-password', 'resetPassword')->middleware('permission:update_customers');
         Route::post('{id}/reset-pin', 'resetPin')->middleware('permission:update_customers');
         Route::post('{id}/toggle-internet-banking', 'toggleInternetBanking')->middleware('permission:update_customers');
@@ -272,6 +275,14 @@ Route::middleware(['user', 'session.lock'])->group(function () {
         Route::get('{id}/liens', 'liens')->middleware('permission:view_accounts');
         Route::post('{id}/toggle-pnd', 'togglePnd')->middleware('permission:update_accounts');
         Route::post('{id}/toggle-pnc', 'togglePnc')->middleware('permission:update_accounts');
+    });
+
+    Route::prefix('virtual-accounts')->controller(VirtualAccountController::class)->group(function () {
+        Route::get('/', 'index')->middleware('permission:view_virtual_accounts');
+        Route::get('{id}', 'show')->middleware('permission:view_virtual_accounts');
+        Route::put('{id}/beneficiary', 'updateBeneficiary')->middleware('permission:update_virtual_accounts');
+        Route::post('{id}/status', 'updateStatus')->middleware('permission:update_virtual_accounts');
+        Route::post('{id}/simulate-credit', 'simulateInboundPayment')->middleware('permission:credit_virtual_accounts');
     });
 
     Route::prefix('account-liens')->controller(AccountLienController::class)->group(function () {

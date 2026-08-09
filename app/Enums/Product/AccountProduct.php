@@ -9,10 +9,10 @@ enum AccountProduct: string
     case SAVINGS = 'savings';
     case CURRENT = 'current';
     case DOMICILIARY = 'domiciliary';
+    case WALLET = 'wallet';
+    case VIRTUAL = 'virtual';
     // case MERCHANT = 'merchant';
     // case CORPORATE = 'corporate';
-    // case VRITUAL = 'virtual';
-    // case WALLET = 'wallet';
 
 
     /** @return string[] */

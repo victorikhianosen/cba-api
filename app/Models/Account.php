@@ -7,6 +7,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Account extends Model
 {
@@ -61,5 +62,17 @@ class Account extends Model
     public function liens(): HasMany
     {
         return $this->hasMany(AccountLien::class);
+    }
+
+    // Set only when this account IS a virtual account — its own beneficiary/parent detail row.
+    public function virtualAccountDetails(): HasOne
+    {
+        return $this->hasOne(VirtualAccountDetail::class);
+    }
+
+    // The inverse: when this account is used as a settlement parent, every VA sweeping into it.
+    public function virtualAccounts(): HasMany
+    {
+        return $this->hasMany(VirtualAccountDetail::class, 'parent_account_id');
     }
 }

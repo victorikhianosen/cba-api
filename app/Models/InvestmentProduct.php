@@ -52,7 +52,7 @@ class InvestmentProduct extends Model
 
     public function generalLedgerMappings(): MorphMany
     {
-        return $this->morphMany(ProductToGlAccountMapping::class, 'product');
+        return $this->morphMany(ProductGlMapping::class, 'product');
     }
 
     public function investments(): HasMany

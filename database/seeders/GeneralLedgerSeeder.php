@@ -34,6 +34,24 @@ class GeneralLedgerSeeder extends Seeder
         ['Current Account Income From Penalties', 'income', 'penalty_income'],
         ['Current Account Transfers Suspense', 'liability', 'suspense'],
 
+        // Wallet product roles (AccountProductType) — dedicated GLs, distinct from Savings/Current.
+        ['Wallet Account Control', 'liability', 'savings_control'],
+        ['Interest On Wallet Account', 'expense', 'interest_expense'],
+        ['Wallet Account Income From Fees', 'income', 'fee_income'],
+        ['Wallet Account Income From Penalties', 'income', 'penalty_income'],
+        ['Wallet Account Transfers Suspense', 'liability', 'suspense'],
+
+        // Virtual account product roles (AccountProductType + the dedicated
+        // VIRTUAL_ACCOUNT_COLLECTIONS role). ACCOUNT_CONTROL/INTEREST_ON_ACCOUNT stay
+        // mapped-but-dormant — a virtual account never carries its own balance, every
+        // credit sweeps through Virtual Account Collections into its parent account.
+        ['Virtual Account Control', 'liability', 'savings_control'],
+        ['Interest On Virtual Account', 'expense', 'interest_expense'],
+        ['Virtual Account Income From Fees', 'income', 'fee_income'],
+        ['Virtual Account Income From Penalties', 'income', 'penalty_income'],
+        ['Virtual Account Transfers Suspense', 'liability', 'suspense'],
+        ['Virtual Account Collections', 'liability', 'suspense'],
+
         // Common chart-of-accounts entries not tied to a specific product role
         ['Cash in Vault', 'asset', 'cash'],
         ['Fixed Assets', 'asset', 'fixed_asset'],
@@ -91,6 +109,21 @@ class GeneralLedgerSeeder extends Seeder
         ['USD Domiciliary Income From Fees', 'income', 'fee_income'],
         ['USD Domiciliary Income From Penalties', 'income', 'penalty_income'],
         ['USD Domiciliary Transfers Suspense', 'liability', 'suspense'],
+
+        // Wallet product roles (AccountProductType)
+        ['USD Wallet Account Control', 'liability', 'savings_control'],
+        ['USD Interest On Wallet Account', 'expense', 'interest_expense'],
+        ['USD Wallet Account Income From Fees', 'income', 'fee_income'],
+        ['USD Wallet Account Income From Penalties', 'income', 'penalty_income'],
+        ['USD Wallet Account Transfers Suspense', 'liability', 'suspense'],
+
+        // Virtual account product roles (AccountProductType + VIRTUAL_ACCOUNT_COLLECTIONS)
+        ['USD Virtual Account Control', 'liability', 'savings_control'],
+        ['USD Interest On Virtual Account', 'expense', 'interest_expense'],
+        ['USD Virtual Account Income From Fees', 'income', 'fee_income'],
+        ['USD Virtual Account Income From Penalties', 'income', 'penalty_income'],
+        ['USD Virtual Account Transfers Suspense', 'liability', 'suspense'],
+        ['USD Virtual Account Collections', 'liability', 'suspense'],
 
         // Loan product roles (LoanProductFinancialAccountType)
         ['USD Loan Fund Source', 'asset', 'cash'],

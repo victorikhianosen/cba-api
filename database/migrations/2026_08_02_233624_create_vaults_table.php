@@ -15,7 +15,7 @@ return new class extends Migration
 
             $table->foreignId('branch_id')->constrained('branches')->restrictOnDelete();
 
-            // Direct FK, not a polymorphic ProductToGlAccountMapping — a vault only ever
+            // Direct FK, not a polymorphic ProductGlMapping — a vault only ever
             // needs one GL role (its own cash balance), unlike AccountProduct/InvestmentProduct
             // which need several named roles.
             $table->foreignId('general_ledger_id')->constrained('general_ledgers')->restrictOnDelete();
