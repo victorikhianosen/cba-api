@@ -387,15 +387,15 @@ class FundGlService
 
         Mail::to('admin@bankqbro.com')->send(new CoreBankMail(
             subjectLine: "GL Funded — {$fundGl->reference}",
-            content: "A GL funding request has been approved.\n\n"
-                . "Amount: {$fundGl->amount}\n"
-                . "Transaction ID: {$financialTransaction->id}\n"
-                . "Transaction Reference: {$financialTransaction->transaction_reference}\n"
-                . "GL Funding Reference: {$fundGl->reference}\n"
-                . "GL Funded: {$destination?->name} ({$destination?->gl_code})\n"
-                . "Requested by: {$fundGl->createdBy?->username}\n"
-                . "Reviewed by: {$fundGl->reviewedBy?->username}\n"
-                . "Approved by: {$actor?->username}\n",
+            content: "A GL funding request has been approved.<br><br>"
+                . "Amount: {$fundGl->amount}<br>"
+                . "Transaction ID: {$financialTransaction->id}<br>"
+                . "Transaction Reference: {$financialTransaction->transaction_reference}<br>"
+                . "GL Funding Reference: {$fundGl->reference}<br>"
+                . "GL Funded: {$destination?->name} ({$destination?->gl_code})<br>"
+                . "Requested by: {$fundGl->createdBy?->username}<br>"
+                . "Reviewed by: {$fundGl->reviewedBy?->username}<br>"
+                . "Approved by: {$actor?->username}<br>",
         ));
     }
 }

@@ -25,6 +25,8 @@ use App\Http\Controllers\Admin\AccountStatementTemplateController;
 use App\Http\Controllers\Admin\InvestmentLetterTemplateController;
 use App\Http\Controllers\Admin\InvestmentProductController;
 use App\Http\Controllers\Admin\JournalEntryController;
+use App\Http\Controllers\Admin\LoanClassificationRuleController;
+use App\Http\Controllers\Admin\LoanController;
 use App\Http\Controllers\Admin\LoanProductController;
 use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\PermissionController;
@@ -317,6 +319,27 @@ Route::middleware(['user', 'session.lock'])->group(function () {
         Route::post('{id}/terminate', 'terminate')->middleware('permission:approve_investments');
         Route::get('{id}/partial-liquidation/preview', [InvestmentPartialLiquidationController::class, 'previewForInvestment'])->middleware('permission:create_investments');
         Route::post('{id}/partial-liquidation', [InvestmentPartialLiquidationController::class, 'store'])->middleware('permission:create_investments');
+    });
+
+    Route::prefix('loans')->controller(LoanController::class)->group(function () {
+        Route::get('/', 'index')->middleware('permission:view_loans');
+        Route::post('/', 'store')->middleware('permission:create_loans');
+        Route::post('preview-schedule', 'previewSchedule')->middleware('permission:create_loans');
+        Route::get('{id}', 'show')->middleware('permission:view_loans');
+        Route::get('{id}/transactions', 'transactions')->middleware('permission:view_loans');
+        Route::get('{id}/schedule', 'schedule')->middleware('permission:view_loans');
+        Route::post('{id}/approve', 'approve')->middleware(['permission:approve_loans', 'totp']);
+        Route::post('{id}/reject', 'reject')->middleware('permission:approve_loans');
+        Route::post('{id}/repayment/preview', 'previewRepayment')->middleware('permission:repay_loans');
+        Route::post('{id}/repay', 'repay')->middleware(['permission:repay_loans', 'totp']);
+    });
+
+    Route::prefix('loan-classification-rules')->controller(LoanClassificationRuleController::class)->group(function () {
+        Route::get('/', 'index')->middleware('permission:view_loan_classification_rules');
+        Route::post('/', 'store')->middleware('permission:manage_loan_classification_rules');
+        Route::get('{id}', 'show')->middleware('permission:view_loan_classification_rules');
+        Route::put('{id}', 'update')->middleware('permission:manage_loan_classification_rules');
+        Route::delete('{id}', 'destroy')->middleware('permission:manage_loan_classification_rules');
     });
 
     Route::prefix('investment-partial-liquidations')->controller(InvestmentPartialLiquidationController::class)->group(function () {

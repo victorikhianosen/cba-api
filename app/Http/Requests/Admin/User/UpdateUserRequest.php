@@ -22,7 +22,7 @@ class UpdateUserRequest extends FormRequest
             'username'   => ['nullable', 'string', 'max:255', 'unique:users,username,' . $this->route('id')],
             'email'      => ['nullable', 'email', 'max:255', 'unique:users,email,' . $this->route('id')],
             'gender'     => ['nullable', 'in:male,female,other'],
-            'phone'      => ['nullable', 'string', 'max:30'],
+            'phone'      => ['nullable', 'string', 'regex:/^\+?[0-9]{1,15}$/'],
             'address'    => ['nullable', 'string', 'max:500'],
             'city'       => ['nullable', 'string', 'max:100'],
             'state'      => ['nullable', 'string', 'max:100'],

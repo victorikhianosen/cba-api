@@ -17,12 +17,7 @@ class UpdateLoanProductRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        if ($this->filled('name')) {
-            $this->merge([
-                'name' => strtolower(str_replace(' ', '_', trim($this->name))),
-            ]);
-        }
-
+        // Deliberately NOT snake-casing the name here — see StoreLoanProductRequest.
         if ($this->filled('interest_calculation_days_in_year')) {
             $this->merge([
                 'interest_calculation_days_in_year' => (string) $this->interest_calculation_days_in_year,
@@ -59,8 +54,11 @@ class UpdateLoanProductRequest extends FormRequest
             'grace_on_arrears_ageing'               => ['nullable', 'integer', 'min:0'],
             'arrears_tolerance_amount'              => ['nullable', 'integer', new StrictInteger, 'min:0'],
             'overdue_days_for_npa'                 => ['nullable', 'integer', 'min:0'],
+            'penalty_interest_rate'                => ['nullable', 'numeric', 'min:0'],
             'days_in_month_type'                   => ['nullable', Rule::in(['actual', 'thirty'])],
             'interest_calculation_days_in_year'    => ['nullable', Rule::in(['360', '365'])],
+            'payment_allocation_order'   => ['nullable', 'array', 'size:4'],
+            'payment_allocation_order.*' => ['required_with:payment_allocation_order', 'distinct', Rule::in(['penalty', 'fee', 'interest', 'principal'])],
         ];
     }
 }

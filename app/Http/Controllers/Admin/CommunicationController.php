@@ -87,7 +87,7 @@ class CommunicationController extends Controller
                 actor: $customer,
                 channel: $channel,
                 recipient: $recipient,
-                body: $data['body'],
+                body: $channel === 'email' ? nl2br(e($data['body'])) : $data['body'],
                 subject: $data['subject'] ?? null,
                 type: $data['type'] ?? 'manual',
             );
@@ -123,7 +123,7 @@ class CommunicationController extends Controller
             $result = $this->communications->sendBulkToCustomers(
                 customerIds: $data['customer_ids'],
                 channel: $channel,
-                body: $data['body'],
+                body: $channel === 'email' ? nl2br(e($data['body'])) : $data['body'],
                 subject: $data['subject'] ?? null,
                 type: $data['type'] ?? 'manual',
                 performer: $request->user('user'),

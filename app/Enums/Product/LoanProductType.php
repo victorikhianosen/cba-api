@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Enums\Product;
 
 // GL role vocabulary for loan products, mirrors Fineract's CashAccountsForLoan enum (numeric gaps included); charge-off/recovery/goodwill-credit roles are intentionally omitted (not built yet).
-enum LoanProductFinancialAccountType: int
+enum LoanProductType: int
 {
     case FUND_SOURCE = 1;
     case LOAN_PORTFOLIO = 2;
@@ -15,6 +15,15 @@ enum LoanProductFinancialAccountType: int
     case LOSSES_WRITTEN_OFF = 6;
     case TRANSFERS_SUSPENSE = 10;
     case OVERPAYMENT = 11;
+
+    // Accrual-side counterpart to INTEREST_ON_LOANS (which becomes purely the
+    // income-recognition GL once accrual posting exists) — the asset GL representing
+    // interest owed but not yet collected.
+    case INTEREST_RECEIVABLE = 12;
+    // Holding GL for interest that's been accrued but, because the loan is
+    // non-performing, isn't being recognized as income yet — money the customer
+    // conceptually owes that hasn't been booked to P&L.
+    case SUSPENDED_INTEREST = 13;
 
     public function label(): string
     {
@@ -27,10 +36,13 @@ enum LoanProductFinancialAccountType: int
             self::LOSSES_WRITTEN_OFF => 'Losses Written Off',
             self::TRANSFERS_SUSPENSE => 'Transfers Suspense',
             self::OVERPAYMENT => 'Overpayment',
+            self::INTEREST_RECEIVABLE => 'Interest Receivable',
+            self::SUSPENDED_INTEREST => 'Suspended Interest',
         };
     }
 
-    // All 8 roles are mandatory for cash-based loan accounting in Fineract.
+    // All roles are mandatory for cash-based loan accounting in Fineract, plus the two
+    // receivable/suspension roles this system added on top.
     /** @return self[] */
     public static function required(): array
     {

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources\Admin\LoanProduct;
 
-use App\Enums\Product\LoanProductFinancialAccountType;
+use App\Enums\Product\LoanProductType;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -48,25 +48,31 @@ class LoanProductResource extends JsonResource
             'grace_on_arrears_ageing'               => $this->grace_on_arrears_ageing,
             'arrears_tolerance_amount'              => $this->arrears_tolerance_amount,
             'overdue_days_for_npa'                 => $this->overdue_days_for_npa,
+            'penalty_interest_rate'                => $this->penalty_interest_rate,
             'days_in_month_type'                   => $this->days_in_month_type,
             'interest_calculation_days_in_year'    => $this->interest_calculation_days_in_year,
+            'payment_allocation_order'              => $this->payment_allocation_order,
 
-            'fundSourceAccountId'           => $accountByType[LoanProductFinancialAccountType::FUND_SOURCE->name]?->general_ledger_id ?? null,
-            'fundSourceAccountCode'         => $accountByType[LoanProductFinancialAccountType::FUND_SOURCE->name]?->generalLedger?->gl_code ?? null,
-            'loanPortfolioAccountId'        => $accountByType[LoanProductFinancialAccountType::LOAN_PORTFOLIO->name]?->general_ledger_id ?? null,
-            'loanPortfolioAccountCode'      => $accountByType[LoanProductFinancialAccountType::LOAN_PORTFOLIO->name]?->generalLedger?->gl_code ?? null,
-            'interestOnLoanAccountId'       => $accountByType[LoanProductFinancialAccountType::INTEREST_ON_LOANS->name]?->general_ledger_id ?? null,
-            'interestOnLoanAccountCode'     => $accountByType[LoanProductFinancialAccountType::INTEREST_ON_LOANS->name]?->generalLedger?->gl_code ?? null,
-            'incomeFromFeeAccountId'        => $accountByType[LoanProductFinancialAccountType::INCOME_FROM_FEES->name]?->general_ledger_id ?? null,
-            'incomeFromFeeAccountCode'      => $accountByType[LoanProductFinancialAccountType::INCOME_FROM_FEES->name]?->generalLedger?->gl_code ?? null,
-            'incomeFromPenaltyAccountId'    => $accountByType[LoanProductFinancialAccountType::INCOME_FROM_PENALTIES->name]?->general_ledger_id ?? null,
-            'incomeFromPenaltyAccountCode'  => $accountByType[LoanProductFinancialAccountType::INCOME_FROM_PENALTIES->name]?->generalLedger?->gl_code ?? null,
-            'writeOffAccountId'             => $accountByType[LoanProductFinancialAccountType::LOSSES_WRITTEN_OFF->name]?->general_ledger_id ?? null,
-            'writeOffAccountCode'           => $accountByType[LoanProductFinancialAccountType::LOSSES_WRITTEN_OFF->name]?->generalLedger?->gl_code ?? null,
-            'transfersInSuspenseAccountId'  => $accountByType[LoanProductFinancialAccountType::TRANSFERS_SUSPENSE->name]?->general_ledger_id ?? null,
-            'transfersInSuspenseAccountCode' => $accountByType[LoanProductFinancialAccountType::TRANSFERS_SUSPENSE->name]?->generalLedger?->gl_code ?? null,
-            'overpaymentLiabilityAccountId' => $accountByType[LoanProductFinancialAccountType::OVERPAYMENT->name]?->general_ledger_id ?? null,
-            'overpaymentLiabilityAccountCode' => $accountByType[LoanProductFinancialAccountType::OVERPAYMENT->name]?->generalLedger?->gl_code ?? null,
+            'fundSourceAccountId'           => $accountByType[LoanProductType::FUND_SOURCE->name]?->general_ledger_id ?? null,
+            'fundSourceAccountCode'         => $accountByType[LoanProductType::FUND_SOURCE->name]?->generalLedger?->gl_code ?? null,
+            'loanPortfolioAccountId'        => $accountByType[LoanProductType::LOAN_PORTFOLIO->name]?->general_ledger_id ?? null,
+            'loanPortfolioAccountCode'      => $accountByType[LoanProductType::LOAN_PORTFOLIO->name]?->generalLedger?->gl_code ?? null,
+            'interestOnLoanAccountId'       => $accountByType[LoanProductType::INTEREST_ON_LOANS->name]?->general_ledger_id ?? null,
+            'interestOnLoanAccountCode'     => $accountByType[LoanProductType::INTEREST_ON_LOANS->name]?->generalLedger?->gl_code ?? null,
+            'incomeFromFeeAccountId'        => $accountByType[LoanProductType::INCOME_FROM_FEES->name]?->general_ledger_id ?? null,
+            'incomeFromFeeAccountCode'      => $accountByType[LoanProductType::INCOME_FROM_FEES->name]?->generalLedger?->gl_code ?? null,
+            'incomeFromPenaltyAccountId'    => $accountByType[LoanProductType::INCOME_FROM_PENALTIES->name]?->general_ledger_id ?? null,
+            'incomeFromPenaltyAccountCode'  => $accountByType[LoanProductType::INCOME_FROM_PENALTIES->name]?->generalLedger?->gl_code ?? null,
+            'writeOffAccountId'             => $accountByType[LoanProductType::LOSSES_WRITTEN_OFF->name]?->general_ledger_id ?? null,
+            'writeOffAccountCode'           => $accountByType[LoanProductType::LOSSES_WRITTEN_OFF->name]?->generalLedger?->gl_code ?? null,
+            'transfersInSuspenseAccountId'  => $accountByType[LoanProductType::TRANSFERS_SUSPENSE->name]?->general_ledger_id ?? null,
+            'transfersInSuspenseAccountCode' => $accountByType[LoanProductType::TRANSFERS_SUSPENSE->name]?->generalLedger?->gl_code ?? null,
+            'overpaymentLiabilityAccountId' => $accountByType[LoanProductType::OVERPAYMENT->name]?->general_ledger_id ?? null,
+            'overpaymentLiabilityAccountCode' => $accountByType[LoanProductType::OVERPAYMENT->name]?->generalLedger?->gl_code ?? null,
+            'interestReceivableAccountId'   => $accountByType[LoanProductType::INTEREST_RECEIVABLE->name]?->general_ledger_id ?? null,
+            'interestReceivableAccountCode' => $accountByType[LoanProductType::INTEREST_RECEIVABLE->name]?->generalLedger?->gl_code ?? null,
+            'suspendedInterestAccountId'    => $accountByType[LoanProductType::SUSPENDED_INTEREST->name]?->general_ledger_id ?? null,
+            'suspendedInterestAccountCode'  => $accountByType[LoanProductType::SUSPENDED_INTEREST->name]?->generalLedger?->gl_code ?? null,
 
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

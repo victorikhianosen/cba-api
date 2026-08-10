@@ -22,7 +22,7 @@ class StoreUserRequest extends FormRequest
             'staff_code'  => ['required', 'string', 'max:255', 'unique:users,staff_code'],
             'email'      => ['required', 'email', 'max:255', 'unique:users,email'],
             'gender'     => ['nullable', 'in:male,female,other'],
-            'phone'      => ['nullable', 'string', 'max:30'],
+            'phone'      => ['nullable', 'string', 'regex:/^\+?[0-9]{1,15}$/'],
             'address'    => ['nullable', 'string', 'max:500'],
             'city'       => ['nullable', 'string', 'max:100'],
             'state'      => ['nullable', 'string', 'max:100'],

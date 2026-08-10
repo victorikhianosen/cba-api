@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Admin\LoanProduct;
 
-use App\Enums\Product\LoanProductFinancialAccountType;
+use App\Enums\Product\LoanProductType;
 use App\Rules\StrictInteger;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -19,12 +19,9 @@ class StoreLoanProductRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        if ($this->filled('name')) {
-            $this->merge([
-                'name' => strtolower(str_replace(' ', '_', trim($this->name))),
-            ]);
-        }
-
+        // Deliberately NOT snake-casing the name here — unlike a GL's internal key, a
+        // loan product's name is a human-facing display label ("Personal Loan Product"),
+        // not an identifier, and should be stored exactly as typed.
         if ($this->filled('interest_calculation_days_in_year')) {
             $this->merge([
                 'interest_calculation_days_in_year' => (string) $this->interest_calculation_days_in_year,
@@ -61,8 +58,15 @@ class StoreLoanProductRequest extends FormRequest
             'grace_on_arrears_ageing'               => ['nullable', 'integer', 'min:0'],
             'arrears_tolerance_amount'              => ['nullable', 'integer', new StrictInteger, 'min:0'],
             'overdue_days_for_npa'                 => ['nullable', 'integer', 'min:0'],
+            'penalty_interest_rate'                => ['nullable', 'numeric', 'min:0'],
             'days_in_month_type'                   => ['nullable', Rule::in(['actual', 'thirty'])],
             'interest_calculation_days_in_year'    => ['nullable', Rule::in(['360', '365'])],
+
+            // Order a repayment is applied across the 4 buckets — must contain each
+            // exactly once. Defaults to penalty->fee->interest->principal in the service
+            // when omitted, so this stays optional here.
+            'payment_allocation_order'   => ['nullable', 'array', 'size:4'],
+            'payment_allocation_order.*' => ['required_with:payment_allocation_order', 'distinct', Rule::in(['penalty', 'fee', 'interest', 'principal'])],
 
             // Accounting (cash-based) — Fineract LoanProductAccountingParams field names.
             'fundSourceAccountId'           => ['required', 'integer', 'exists:general_ledgers,id'],
@@ -73,6 +77,8 @@ class StoreLoanProductRequest extends FormRequest
             'writeOffAccountId'             => ['required', 'integer', 'exists:general_ledgers,id'],
             'transfersInSuspenseAccountId'  => ['required', 'integer', 'exists:general_ledgers,id'],
             'overpaymentLiabilityAccountId' => ['required', 'integer', 'exists:general_ledgers,id'],
+            'interestReceivableAccountId'   => ['required', 'integer', 'exists:general_ledgers,id'],
+            'suspendedInterestAccountId'    => ['required', 'integer', 'exists:general_ledgers,id'],
         ];
     }
 
@@ -81,14 +87,16 @@ class StoreLoanProductRequest extends FormRequest
         $data = $this->validated();
 
         $data['general_ledgers'] = [
-            ['financial_account_type' => LoanProductFinancialAccountType::FUND_SOURCE->name, 'general_ledger_id' => $data['fundSourceAccountId']],
-            ['financial_account_type' => LoanProductFinancialAccountType::LOAN_PORTFOLIO->name, 'general_ledger_id' => $data['loanPortfolioAccountId']],
-            ['financial_account_type' => LoanProductFinancialAccountType::INTEREST_ON_LOANS->name, 'general_ledger_id' => $data['interestOnLoanAccountId']],
-            ['financial_account_type' => LoanProductFinancialAccountType::INCOME_FROM_FEES->name, 'general_ledger_id' => $data['incomeFromFeeAccountId']],
-            ['financial_account_type' => LoanProductFinancialAccountType::INCOME_FROM_PENALTIES->name, 'general_ledger_id' => $data['incomeFromPenaltyAccountId']],
-            ['financial_account_type' => LoanProductFinancialAccountType::LOSSES_WRITTEN_OFF->name, 'general_ledger_id' => $data['writeOffAccountId']],
-            ['financial_account_type' => LoanProductFinancialAccountType::TRANSFERS_SUSPENSE->name, 'general_ledger_id' => $data['transfersInSuspenseAccountId']],
-            ['financial_account_type' => LoanProductFinancialAccountType::OVERPAYMENT->name, 'general_ledger_id' => $data['overpaymentLiabilityAccountId']],
+            ['financial_account_type' => LoanProductType::FUND_SOURCE->name, 'general_ledger_id' => $data['fundSourceAccountId']],
+            ['financial_account_type' => LoanProductType::LOAN_PORTFOLIO->name, 'general_ledger_id' => $data['loanPortfolioAccountId']],
+            ['financial_account_type' => LoanProductType::INTEREST_ON_LOANS->name, 'general_ledger_id' => $data['interestOnLoanAccountId']],
+            ['financial_account_type' => LoanProductType::INCOME_FROM_FEES->name, 'general_ledger_id' => $data['incomeFromFeeAccountId']],
+            ['financial_account_type' => LoanProductType::INCOME_FROM_PENALTIES->name, 'general_ledger_id' => $data['incomeFromPenaltyAccountId']],
+            ['financial_account_type' => LoanProductType::LOSSES_WRITTEN_OFF->name, 'general_ledger_id' => $data['writeOffAccountId']],
+            ['financial_account_type' => LoanProductType::TRANSFERS_SUSPENSE->name, 'general_ledger_id' => $data['transfersInSuspenseAccountId']],
+            ['financial_account_type' => LoanProductType::OVERPAYMENT->name, 'general_ledger_id' => $data['overpaymentLiabilityAccountId']],
+            ['financial_account_type' => LoanProductType::INTEREST_RECEIVABLE->name, 'general_ledger_id' => $data['interestReceivableAccountId']],
+            ['financial_account_type' => LoanProductType::SUSPENDED_INTEREST->name, 'general_ledger_id' => $data['suspendedInterestAccountId']],
         ];
 
         unset(
@@ -98,6 +106,8 @@ class StoreLoanProductRequest extends FormRequest
             $data['incomeFromFeeAccountId'],
             $data['incomeFromPenaltyAccountId'],
             $data['writeOffAccountId'],
+            $data['interestReceivableAccountId'],
+            $data['suspendedInterestAccountId'],
             $data['transfersInSuspenseAccountId'],
             $data['overpaymentLiabilityAccountId'],
         );

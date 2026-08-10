@@ -39,7 +39,7 @@
                             style="padding:36px 32px; color:#334155; font-family:'Segoe UI', Arial, sans-serif; font-size:15px; line-height:1.65;">
 
                             <div>
-                                {!! nl2br(e($content)) !!}
+                                {!! $content !!}
                             </div>
 
                             <!-- Divider -->

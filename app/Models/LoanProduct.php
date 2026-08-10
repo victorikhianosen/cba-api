@@ -22,6 +22,8 @@ class LoanProduct extends Model
             'max_principal_amount'                  => 'integer',
             'default_principal_amount'              => 'integer',
             'arrears_tolerance_amount'               => 'integer',
+            'penalty_interest_rate'                  => 'decimal:2',
+            'payment_allocation_order'               => 'array',
             'approved_at'                            => 'datetime',
         ];
     }

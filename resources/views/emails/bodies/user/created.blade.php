@@ -20,16 +20,6 @@
                     <td style="padding:6px 0; color:#0f172a; font-weight:600;">{{ $password }}</td>
                 </tr>
                 <tr>
-                    <td style="padding:6px 0; color:#64748b;">Account Code</td>
-                    <td style="padding:6px 0; color:#0f172a; font-weight:600;">{{ $user->code }}</td>
-                </tr>
-                @if($user->staff_code)
-                <tr>
-                    <td style="padding:6px 0; color:#64748b;">Staff Code</td>
-                    <td style="padding:6px 0; color:#0f172a; font-weight:600;">{{ $user->staff_code }}</td>
-                </tr>
-                @endif
-                <tr>
                     <td style="padding:6px 0; color:#64748b;">Email</td>
                     <td style="padding:6px 0; color:#0f172a; font-weight:600;">{{ $user->email }}</td>
                 </tr>

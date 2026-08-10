@@ -31,6 +31,8 @@ class RolePermissionSeeder extends Seeder
         'view_fund_gls', 'create_fund_gls', 'review_fund_gls', 'approve_fund_gls',
         'view_account_products', 'create_account_products', 'update_account_products', 'delete_account_products', 'approve_account_products',
         'view_loan_products', 'create_loan_products', 'update_loan_products', 'delete_loan_products', 'approve_loan_products',
+        'view_loans', 'create_loans', 'approve_loans', 'repay_loans', 'restructure_loans', 'write_off_loans',
+        'view_loan_classification_rules', 'manage_loan_classification_rules',
         'view_investment_products', 'create_investment_products', 'update_investment_products', 'delete_investment_products', 'approve_investment_products',
         'view_investments', 'create_investments', 'approve_investments',
         'view_audit_trails',
@@ -60,6 +62,6 @@ class RolePermissionSeeder extends Seeder
         // Cashiers only operate their own teller day-to-day — they don't manage the
         // vault/teller catalog and can't approve their own (or anyone else's) variance.
         $cashier = Role::firstOrCreate(['name' => 'cashier', 'guard_name' => 'user']);
-        $cashier->givePermissionTo(['operate_teller', 'view_tellers']);
+        $cashier->givePermissionTo(['operate_teller', 'view_tellers', 'repay_loans', 'view_loans']);
     }
 }

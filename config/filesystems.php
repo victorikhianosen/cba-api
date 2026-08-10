@@ -27,7 +27,7 @@ return [
     |
     */
 
-    'uploads_disk' => env('UPLOADS_DISK', 's3'),
+    'uploads_disk' => env('UPLOADS_DISK', 'minio'),
 
     /*
     |--------------------------------------------------------------------------
@@ -39,6 +39,13 @@ return [
     | most supported storage drivers are configured here for reference.
     |
     | Supported drivers: "local", "ftp", "sftp", "s3"
+    |
+    | "minio" is what this app actually talks to today (self-hosted, S3-compatible) —
+    | kept as its own disk with its own MINIO_* env vars so it's never confused with a
+    | real AWS S3 bucket. The "s3" disk below is left in place, wired to genuine AWS_*
+    | vars (currently blank), ready to use unchanged the day this app actually points at
+    | real AWS S3 — just flip FILESYSTEM_DISK/UPLOADS_DISK back to "s3" and fill in the
+    | AWS_* values.
     |
     */
 
@@ -70,6 +77,19 @@ return [
             'url' => env('AWS_URL'),
             'endpoint' => env('AWS_ENDPOINT'),
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+            'throw' => false,
+            'report' => false,
+        ],
+        
+        'minio' => [
+            'driver' => 's3',
+            'key' => env('MINIO_ACCESS_KEY_ID'),
+            'secret' => env('MINIO_SECRET_ACCESS_KEY'),
+            'region' => env('MINIO_DEFAULT_REGION', 'us-east-1'),
+            'bucket' => env('MINIO_BUCKET'),
+            'url' => env('MINIO_URL'),
+            'endpoint' => env('MINIO_ENDPOINT'),
+            'use_path_style_endpoint' => env('MINIO_USE_PATH_STYLE_ENDPOINT', true),
             'throw' => false,
             'report' => false,
         ],

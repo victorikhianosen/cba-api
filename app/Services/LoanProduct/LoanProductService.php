@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Services\LoanProduct;
 
 use App\Enums\GeneralLedger\GeneralLedgerStatus;
-use App\Enums\Product\LoanProductFinancialAccountType;
+use App\Enums\Product\LoanProductType;
 use App\Models\Currency;
 use App\Models\GeneralLedger;
 use App\Models\LoanProduct;
@@ -60,7 +60,7 @@ class LoanProductService
             $loanProduct = LoanProduct::create($data)->refresh();
 
             foreach ($generalLedgers as $mapping) {
-                $type = LoanProductFinancialAccountType::fromName($mapping['financial_account_type']);
+                $type = LoanProductType::fromName($mapping['financial_account_type']);
 
                 $loanProduct->generalLedgerMappings()->create([
                     'general_ledger_id'           => $mapping['general_ledger_id'],
@@ -196,14 +196,14 @@ class LoanProductService
         $providedTypes = collect($mappings)->pluck('financial_account_type');
 
         foreach ($providedTypes as $name) {
-            if (! in_array($name, LoanProductFinancialAccountType::names(), true)) {
+            if (! in_array($name, LoanProductType::names(), true)) {
                 throw ValidationException::withMessages([
                     'general_ledgers' => ["'{$name}' is not a valid financial account type for loan products."],
                 ]);
             }
         }
 
-        foreach (LoanProductFinancialAccountType::required() as $type) {
+        foreach (LoanProductType::required() as $type) {
             if (! $providedTypes->contains($type->name)) {
                 throw ValidationException::withMessages([
                     'general_ledgers' => ["{$type->label()} GL mapping is required."],
