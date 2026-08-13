@@ -113,4 +113,37 @@ class AccountTierController extends Controller
             );
         }
     }
+
+    public function destroy(int $id): JsonResponse
+    {
+        try {
+            $accountTier = $this->accountTiers->find($id);
+            $this->accountTiers->delete($accountTier);
+
+            return $this->success(
+                message: 'Account tier deleted successfully.',
+            );
+        } catch (ModelNotFoundException $e) {
+            return $this->error(
+                message: 'The requested account tier was not found.',
+                responseCode: '404',
+                statusCode: 404,
+            );
+        } catch (ValidationException $e) {
+            return $this->error(
+                message: $e->getMessage(),
+                responseCode: '101',
+                statusCode: 422,
+                errors: $e->errors(),
+            );
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->error(
+                message: 'We are unable to process your request please try again.',
+                responseCode: '500',
+                statusCode: 500,
+            );
+        }
+    }
 }

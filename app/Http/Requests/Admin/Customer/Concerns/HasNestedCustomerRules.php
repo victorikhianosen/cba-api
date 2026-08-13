@@ -98,10 +98,11 @@ trait HasNestedCustomerRules
             'directors.*.bvn'              => ['nullable', 'digits:11'],
             'directors.*.nin'              => ['nullable', 'digits:11'],
             'directors.*.tin'              => ['nullable', 'string', 'max:50'],
-            'directors.*.id_type'          => ['nullable', 'string', 'max:50'],
+            'directors.*.id_type'          => ['nullable', Rule::in(['nin', 'international_passport', 'drivers_license', 'voters_card'])],
             'directors.*.id_number'        => ['nullable', 'string', 'max:100'],
+            'directors.*.shares_owned'     => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'directors.*.id_document'      => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
             'directors.*.passport_photo'   => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
-            'directors.*.is_primary'       => ['sometimes', 'boolean'],
         ];
 
         if ($customerId) {

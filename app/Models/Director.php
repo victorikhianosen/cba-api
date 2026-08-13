@@ -18,7 +18,7 @@ class Director extends Model
             'dob'               => 'date',
             'appointment_date'  => 'date',
             'resignation_date'  => 'date',
-            'is_primary'        => 'boolean',
+            'shares_owned'      => 'decimal:2',
         ];
     }
 

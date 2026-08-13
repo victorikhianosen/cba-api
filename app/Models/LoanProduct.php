@@ -6,6 +6,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class LoanProduct extends Model
@@ -16,11 +17,10 @@ class LoanProduct extends Model
     {
         return [
             'interest_rate'                        => 'decimal:2',
-            'min_nominal_interest_rate_per_period'  => 'decimal:2',
-            'max_nominal_interest_rate_per_period'  => 'decimal:2',
+            'management_fee_percentage'             => 'decimal:2',
+            'processing_fee_percentage'              => 'decimal:2',
             'min_principal_amount'                  => 'integer',
             'max_principal_amount'                  => 'integer',
-            'default_principal_amount'              => 'integer',
             'arrears_tolerance_amount'               => 'integer',
             'penalty_interest_rate'                  => 'decimal:2',
             'payment_allocation_order'               => 'array',
@@ -46,5 +46,10 @@ class LoanProduct extends Model
     public function generalLedgerMappings(): MorphMany
     {
         return $this->morphMany(ProductGlMapping::class, 'product');
+    }
+
+    public function loans(): HasMany
+    {
+        return $this->hasMany(Loan::class);
     }
 }

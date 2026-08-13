@@ -7,8 +7,11 @@ namespace App\Services\Customer;
 use App\Enums\Customer\BusinessType;
 use App\Enums\Customer\CustomerType;
 use App\Enums\Customer\LegalForm;
+use App\Jobs\ProcessCustomerBulkImportChunkJob;
+use App\Jobs\ProcessCustomerBulkImportJob;
 use App\Models\AccountProduct;
 use App\Models\Customer;
+use App\Models\CustomerBulkImportRow;
 use App\Services\Account\AccountService;
 use App\Services\Audit\AuditService;
 use App\Services\Communication\CommunicationService;
@@ -16,6 +19,7 @@ use App\Services\Notification\NotificationService;
 use App\Services\Storage\FileStorageService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -77,7 +81,9 @@ class CustomerService
                         ->orWhere('last_name', 'like', "%{$search}%")
                         ->orWhere('business_name', 'like', "%{$search}%")
                         ->orWhere('email', 'like', "%{$search}%")
-                        ->orWhere('phone', 'like', "%{$search}%");
+                        ->orWhere('phone', 'like', "%{$search}%")
+                        ->orWhere('username', 'like', "%{$search}%")
+                        ->orWhereHas('accounts', fn ($q) => $q->where('account_number', 'like', "%{$search}%"));
                 });
             });
     }
@@ -193,6 +199,10 @@ class CustomerService
                     $director['passport_photo'] = $this->files->upload($director['passport_photo'], "director-photos/{$customer->id}");
                 }
 
+                if (($director['id_document'] ?? null) instanceof UploadedFile) {
+                    $director['id_document'] = $this->files->upload($director['id_document'], "director-id-documents/{$customer->id}");
+                }
+
                 $customer->directors()->create($director);
             }
 
@@ -252,8 +262,8 @@ class CustomerService
         'address', 'city', 'state', 'country',
         'next_of_kin_first_name', 'next_of_kin_last_name', 'next_of_kin_relationship', 'next_of_kin_phone',
         'guardian_account_number',
-        'business_name', 'business_type', 'trading_name', 'registration_number',
-        'signatory_first_name', 'signatory_last_name', 'signatory_phone', 'signatory_position',
+        'business_name', 'rc_number', 'business_type', 'trading_name', 'registration_number',
+        'signatory_first_name', 'signatory_middle_name', 'signatory_last_name', 'signatory_phone', 'signatory_position',
     ];
 
     // Human-readable column headers for the downloadable template — the raw snake_case
@@ -285,10 +295,12 @@ class CustomerService
         'next_of_kin_phone'         => 'Next of Kin Phone',
         'guardian_account_number'   => 'Guardian Account Number',
         'business_name'             => 'Business Name',
+        'rc_number'                 => 'RC Number',
         'business_type'             => 'Business Type',
         'trading_name'              => 'Trading Name',
         'registration_number'       => 'Registration Number',
         'signatory_first_name'      => 'Signatory First Name',
+        'signatory_middle_name'     => 'Signatory Middle Name',
         'signatory_last_name'       => 'Signatory Last Name',
         'signatory_phone'           => 'Signatory Phone',
         'signatory_position'        => 'Signatory Position',
@@ -367,14 +379,16 @@ class CustomerService
             'city'                 => 'Lagos',
             'state'                => 'Lagos',
             'country'              => 'Nigeria',
-            'business_name'        => 'Okafor Ventures',
-            'business_type'        => 'business_name',
-            'trading_name'         => 'Okafor Stores',
-            'registration_number'  => 'BN9876543',
-            'signatory_first_name' => 'Chidi',
-            'signatory_last_name'  => 'Okafor',
-            'signatory_phone'      => '08022223333',
-            'signatory_position'   => 'Proprietor',
+            'business_name'         => 'Okafor Ventures',
+            'rc_number'             => 'RC1234567',
+            'business_type'         => 'business_name',
+            'trading_name'          => 'Okafor Stores',
+            'registration_number'   => 'BN9876543',
+            'signatory_first_name'  => 'Chidi',
+            'signatory_middle_name' => 'Emeka',
+            'signatory_last_name'   => 'Okafor',
+            'signatory_phone'       => '08022223333',
+            'signatory_position'    => 'Proprietor',
         ]);
 
         $government = array_merge($blank, [
@@ -395,14 +409,16 @@ class CustomerService
             'city'                 => 'Abuja',
             'state'                => 'FCT',
             'country'              => 'Nigeria',
-            'business_name'        => 'Ministry of Works',
-            'business_type'        => 'government',
-            'trading_name'         => '',
-            'registration_number'  => 'GOV-0001',
-            'signatory_first_name' => 'Amina',
-            'signatory_last_name'  => 'Yusuf',
-            'signatory_phone'      => '08044445555',
-            'signatory_position'   => 'Permanent Secretary',
+            'business_name'         => 'Ministry of Works',
+            'rc_number'             => '',
+            'business_type'         => 'government',
+            'trading_name'          => '',
+            'registration_number'   => 'GOV-0001',
+            'signatory_first_name'  => 'Amina',
+            'signatory_middle_name' => 'Bello',
+            'signatory_last_name'   => 'Yusuf',
+            'signatory_phone'       => '08044445555',
+            'signatory_position'    => 'Permanent Secretary',
         ]);
 
         return array_map(
@@ -425,53 +441,246 @@ class CustomerService
     }
 
     /**
-     * Parses an uploaded spreadsheet and creates one customer per row (either of the 2
-     * customer types — individual [optionally a minor, via guardian_account_number] or
-     * business [optionally government, via legal_form] — see mapBulkImportRow()), isolating each row in its own
-     * try/catch (mirroring PostingService::bulkApprove()'s pattern) so a bad row
-     * (duplicate phone, missing name, whatever) never blocks or rolls back the rest of the
-     * batch.
-     *
-     * @return array{created: int, failed: int, errors: array<int, array{row: int, reason: string}>}
+     * Parses an uploaded spreadsheet and snapshots one CustomerBulkImportRow per data
+     * row (status: pending, row_data: the raw mapped row) under a shared batch_id —
+     * cheap, no validation or customer-creation happens here, so the HTTP response
+     * returns immediately. Dispatches the actual processing to
+     * ProcessCustomerBulkImportJob, which works entirely off row_data and never
+     * re-touches the uploaded file.
      */
-    public function bulkImport(UploadedFile $file): array
+    // Fully asynchronous, start to finish — this is the only part that runs inline, and
+    // it does no parsing/validation/processing at all, just an I/O write (upload()
+    // stores the file in its own permanent folder, same as every other document this
+    // app keeps) and a job dispatch. Even reading the spreadsheet happens in the
+    // background now (see populateBulkImportRows()), so a large file never slows down
+    // the HTTP response.
+    public function startBulkImport(UploadedFile $file): string
     {
-        $created = 0;
-        $errors  = [];
+        $actor   = Auth::guard('user')->user();
+        $batchId = (string) Str::uuid();
 
-        $rows = SimpleExcelReader::create($file->getRealPath(), $file->getClientOriginalExtension())
-            ->headersToSnakeCase()
-            ->getRows();
+        $storedPath = $this->files->upload($file, 'customer-bulk-imports');
 
-        $rowNumber = 1; // Row 1 is the header row, so the first data row is row 2.
+        ProcessCustomerBulkImportJob::dispatch(
+            $batchId,
+            $storedPath,
+            $file->getClientOriginalName(),
+            (int) $actor?->id,
+        );
 
-        foreach ($rows as $row) {
-            $rowNumber++;
+        return $batchId;
+    }
 
-            try {
-                $data = $this->mapBulkImportRow($row);
-            } catch (ValidationException $e) {
-                $errors[] = ['row' => $rowNumber, 'reason' => implode(' ', $e->errors()[array_key_first($e->errors())] ?? ['Invalid row.'])];
-                continue;
-            }
+    /**
+     * First half of the background job — reads the stored upload (never the original
+     * request's temp file, which is long gone by the time a queue worker picks this
+     * up) and snapshots one pending CustomerBulkImportRow per data row. The uploaded
+     * file itself is never deleted (kept in its folder, same retention as every other
+     * uploaded document) — only the local scratch copy made to open it is cleaned up.
+     */
+    public function populateBulkImportRows(string $batchId, string $storedPath, string $fileName, ?int $actorId): void
+    {
+        $tempPath = storage_path('app/temp/bulk-import-' . Str::uuid() . '-' . $fileName);
 
-            $validator = Validator::make($data, $this->bulkImportRulesFor($data));
-
-            if ($validator->fails()) {
-                $errors[] = ['row' => $rowNumber, 'reason' => implode(' ', $validator->errors()->all())];
-                continue;
-            }
-
-            try {
-                $this->create($data);
-                $created++;
-            } catch (\Throwable $e) {
-                report($e);
-                $errors[] = ['row' => $rowNumber, 'reason' => 'This row could not be processed — please check its values and try again.'];
-            }
+        if (! is_dir(dirname($tempPath))) {
+            mkdir(dirname($tempPath), 0755, true);
         }
 
-        return ['created' => $created, 'failed' => count($errors), 'errors' => $errors];
+        file_put_contents($tempPath, $this->files->read($storedPath));
+
+        try {
+            $rows = SimpleExcelReader::create($tempPath, pathinfo($fileName, PATHINFO_EXTENSION))
+                ->headersToSnakeCase()
+                ->getRows();
+
+            $rowNumber = 1; // Row 1 is the header row, so the first data row is row 2.
+
+            foreach ($rows as $row) {
+                $rowNumber++;
+
+                CustomerBulkImportRow::create([
+                    'batch_id'   => $batchId,
+                    'file_name'  => $fileName,
+                    'row_number' => $rowNumber,
+                    'status'     => 'pending',
+                    'row_data'   => $row,
+                    'created_by' => $actorId,
+                ]);
+            }
+        } finally {
+            @unlink($tempPath);
+        }
+    }
+
+    /**
+     * Second half of the background job — the actual per-row work, isolating each row
+     * in its own try/catch (mirroring PostingService::bulkApprove()'s pattern) so a bad
+     * row (duplicate phone, missing name, whatever) never blocks the rest of the batch.
+     */
+    private function processBulkImportRow(CustomerBulkImportRow $row): void
+    {
+        try {
+            $data = $this->mapBulkImportRow($row->row_data);
+        } catch (ValidationException $e) {
+            $row->update([
+                'status'       => 'failed',
+                'error_reason' => implode(' ', $e->errors()[array_key_first($e->errors())] ?? ['Invalid row.']),
+            ]);
+
+            return;
+        }
+
+        $validator = Validator::make($data, $this->bulkImportRulesFor($data));
+
+        if ($validator->fails()) {
+            $row->update([
+                'status'       => 'failed',
+                'error_reason' => implode(' ', $validator->errors()->all()),
+            ]);
+
+            return;
+        }
+
+        try {
+            $customer = $this->create($data);
+            $row->update(['status' => 'success', 'customer_id' => $customer->id]);
+        } catch (\Throwable $e) {
+            report($e);
+            $row->update([
+                'status'       => 'failed',
+                'error_reason' => 'This row could not be processed — please check its values and try again.',
+            ]);
+        }
+    }
+
+    // Kept for small batches / manual reprocessing — for anything sizeable,
+    // ProcessCustomerBulkImportJob instead splits the batch into many
+    // ProcessCustomerBulkImportChunkJob dispatches (see chunkBulkImportBatch()) so a
+    // single job run can never approach the queue worker's timeout, no matter how many
+    // rows are in the file.
+    public function processBulkImportBatch(string $batchId): void
+    {
+        CustomerBulkImportRow::query()
+            ->where('batch_id', $batchId)
+            ->where('status', 'pending')
+            ->orderBy('row_number')
+            ->chunkById(50, function ($rows) {
+                foreach ($rows as $row) {
+                    $this->processBulkImportRow($row);
+                }
+            });
+    }
+
+    /** @param int[] $rowIds */
+    public function processBulkImportRowIds(array $rowIds): void
+    {
+        CustomerBulkImportRow::query()
+            ->whereIn('id', $rowIds)
+            ->where('status', 'pending')
+            ->each(function ($row) {
+                $this->processBulkImportRow($row);
+            });
+    }
+
+    // Splits every pending row in a batch into fixed-size id chunks and dispatches one
+    // ProcessCustomerBulkImportChunkJob per chunk — each chunk job only ever has to get
+    // through CHUNK_SIZE rows (bcrypt-hashing a password alone is ~100ms/row, so 6000
+    // rows in one job run is exactly what blew through the default 60s queue timeout).
+    // Chunks are independent: one slow/bad chunk never affects the others.
+    private const BULK_IMPORT_CHUNK_SIZE = 200;
+
+    public function chunkBulkImportBatch(string $batchId): void
+    {
+        CustomerBulkImportRow::query()
+            ->where('batch_id', $batchId)
+            ->where('status', 'pending')
+            ->orderBy('row_number')
+            ->pluck('id')
+            ->chunk(self::BULK_IMPORT_CHUNK_SIZE)
+            ->each(fn ($rowIds) => ProcessCustomerBulkImportChunkJob::dispatch($rowIds->values()->all()));
+    }
+
+    // Every batch_id sharing a group of rows IS the batch — no separate header table.
+    // Overall status is derived: any row still pending -> processing; else any failed ->
+    // completed_with_errors; else completed.
+    // pending > 0 means the queued job hasn't finished this batch yet — "processing"
+    // covers both "not started" and "partway through", since a single-table design has
+    // no separate flag for that distinction and it isn't useful to the viewer either way.
+    private function derivedBatchStatus(int $pendingCount, int $createdCount, int $failedCount): string
+    {
+        return match (true) {
+            $pendingCount > 0  => 'processing',
+            $failedCount === 0 => 'completed',
+            $createdCount === 0 => 'failed',
+            default            => 'completed_with_errors',
+        };
+    }
+
+    /** @return array<string, mixed> */
+    private function summarizeBatch(object $aggregate): array
+    {
+        return [
+            'batch_id'        => $aggregate->batch_id,
+            'file_name'       => $aggregate->file_name,
+            'total_rows'      => (int) $aggregate->total_rows,
+            'created_count'   => (int) $aggregate->created_count,
+            'failed_count'    => (int) $aggregate->failed_count,
+            'pending_count'   => (int) $aggregate->pending_count,
+            'status'          => $this->derivedBatchStatus((int) $aggregate->pending_count, (int) $aggregate->created_count, (int) $aggregate->failed_count),
+            'created_by_name' => $aggregate->createdBy?->username,
+            'created_at'      => $aggregate->created_at,
+        ];
+    }
+
+    public function listBulkImportBatches(int $perPage = 15): LengthAwarePaginator
+    {
+        return CustomerBulkImportRow::query()
+            ->selectRaw('batch_id')
+            ->selectRaw('MIN(file_name) as file_name')
+            ->selectRaw('MIN(created_by) as created_by')
+            ->selectRaw('MIN(created_at) as created_at')
+            ->selectRaw('COUNT(*) as total_rows')
+            ->selectRaw("SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as created_count")
+            ->selectRaw("SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count")
+            ->selectRaw("SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_count")
+            ->groupBy('batch_id')
+            ->orderByDesc('created_at')
+            ->with('createdBy')
+            ->paginate($perPage)
+            ->withQueryString()
+            ->through(fn ($batch) => $this->summarizeBatch($batch));
+    }
+
+    /** @return array{summary: array<string, mixed>, rows: LengthAwarePaginator} */
+    public function findBulkImportBatch(string $batchId, int $perPage = 20, ?string $status = null): array
+    {
+        $aggregate = CustomerBulkImportRow::query()
+            ->where('batch_id', $batchId)
+            ->selectRaw('batch_id')
+            ->selectRaw('MIN(file_name) as file_name')
+            ->selectRaw('MIN(created_by) as created_by')
+            ->selectRaw('MIN(created_at) as created_at')
+            ->selectRaw('COUNT(*) as total_rows')
+            ->selectRaw("SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as created_count")
+            ->selectRaw("SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count")
+            ->selectRaw("SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_count")
+            ->groupBy('batch_id')
+            ->with('createdBy')
+            ->first();
+
+        if (! $aggregate) {
+            throw new ModelNotFoundException("No bulk import batch found with id '{$batchId}'.");
+        }
+
+        $rows = CustomerBulkImportRow::query()
+            ->where('batch_id', $batchId)
+            ->when($status, fn ($query, $status) => $query->where('status', $status))
+            ->with(['customer', 'createdBy'])
+            ->orderBy('row_number')
+            ->paginate($perPage)
+            ->withQueryString();
+
+        return ['summary' => $this->summarizeBatch($aggregate), 'rows' => $rows];
     }
 
     /** @param array<string, mixed> $data
@@ -483,6 +692,7 @@ class CustomerService
         $rules = [
             'customer_type' => ['required', Rule::in(CustomerType::values())],
             'legal_form'    => ['nullable', Rule::in(LegalForm::values())],
+            'rc_number'     => ['nullable', 'string', 'max:50', 'unique:customers,rc_number'],
             'first_name'    => ['required', 'string', 'max:255'],
             'last_name'     => ['required', 'string', 'max:255'],
             'phone'         => ['required', 'string', 'regex:/^\d+$/', 'max:15', 'unique:customers,phone'],
@@ -531,6 +741,7 @@ class CustomerService
         $data = [
             'customer_type'   => $customerType,
             'legal_form'      => trim((string) ($row['legal_form'] ?? '')) ?: null,
+            'rc_number'       => trim((string) ($row['rc_number'] ?? '')) ?: null,
             'first_name'      => trim((string) ($row['first_name'] ?? '')) ?: null,
             'middle_name'     => trim((string) ($row['middle_name'] ?? '')) ?: null,
             'last_name'       => trim((string) ($row['last_name'] ?? '')) ?: null,
@@ -605,16 +816,18 @@ class CustomerService
             ]);
 
             if ($businessType !== BusinessType::NOT_REGISTERED->value) {
-                $signatoryFirstName = trim((string) ($row['signatory_first_name'] ?? ''));
-                $signatoryLastName  = trim((string) ($row['signatory_last_name'] ?? ''));
-                $signatoryPhone     = trim((string) ($row['signatory_phone'] ?? ''));
-                $signatoryPosition  = trim((string) ($row['signatory_position'] ?? ''));
+                $signatoryFirstName  = trim((string) ($row['signatory_first_name'] ?? ''));
+                $signatoryMiddleName = trim((string) ($row['signatory_middle_name'] ?? ''));
+                $signatoryLastName   = trim((string) ($row['signatory_last_name'] ?? ''));
+                $signatoryPhone      = trim((string) ($row['signatory_phone'] ?? ''));
+                $signatoryPosition   = trim((string) ($row['signatory_position'] ?? ''));
 
                 $data['signatories'] = [[
-                    'first_name' => $signatoryFirstName ?: null,
-                    'last_name'  => $signatoryLastName ?: null,
-                    'phone'      => $signatoryPhone ?: null,
-                    'position'   => $signatoryPosition ?: null,
+                    'first_name'  => $signatoryFirstName ?: null,
+                    'middle_name' => $signatoryMiddleName ?: null,
+                    'last_name'   => $signatoryLastName ?: null,
+                    'phone'       => $signatoryPhone ?: null,
+                    'position'    => $signatoryPosition ?: null,
                 ]];
             }
         }
@@ -736,6 +949,10 @@ class CustomerService
 
                 if (($director['passport_photo'] ?? null) instanceof UploadedFile) {
                     $director['passport_photo'] = $this->files->upload($director['passport_photo'], "director-photos/{$customer->id}");
+                }
+
+                if (($director['id_document'] ?? null) instanceof UploadedFile) {
+                    $director['id_document'] = $this->files->upload($director['id_document'], "director-id-documents/{$customer->id}");
                 }
 
                 if ($id) {
@@ -1120,12 +1337,14 @@ class CustomerService
             : trim("{$customer->first_name} {$customer->last_name}");
     }
 
+    // 10 digits after the prefix — CIF0000000001 up to CIF9999999999 — room for
+    // billions of customers instead of the previous 6-digit cap (CIF999999).
     private function generateUniqueCifNumber(): string
     {
         $next = Customer::count() + 1;
 
         do {
-            $cif = 'CIF' . str_pad((string) $next, 6, '0', STR_PAD_LEFT);
+            $cif = 'CIF' . str_pad((string) $next, 10, '0', STR_PAD_LEFT);
             $next++;
         } while (Customer::where('cif_number', $cif)->exists());
 

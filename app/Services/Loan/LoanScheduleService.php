@@ -27,12 +27,10 @@ class LoanScheduleService
             principal: (string) $loan->principal_amount,
             annualRatePercent: (string) $loan->interest_rate,
             interestRateFrequencyType: $loan->interest_rate_frequency_type,
-            interestCalculationPeriodType: $loan->interest_calculation_period_type,
-            interestCalculationDaysInYear: (int) $loan->interest_calculation_days_in_year,
             repaymentEvery: (int) $loan->repayment_every,
             repaymentFrequencyType: $loan->repayment_frequency_type,
-            numberOfRepayments: (int) $loan->number_of_repayments,
-            amortizationMethod: $loan->amortization_method,
+            duration: (int) $loan->duration,
+            interestMethod: $loan->interest_method,
             startDate: Carbon::parse($loan->start_date),
         );
 
@@ -45,7 +43,7 @@ class LoanScheduleService
     // version, generate a fresh version from today on the current outstanding balance and
     // (possibly) new terms. Mirrors InvestmentScheduleService::regenerateRemaining()
     // exactly, adapted for real amortization instead of static-principal simple interest.
-    public function regenerateRemaining(Loan $loan, ?int $numberOfRepayments = null, ?int $repaymentEvery = null, ?string $interestRate = null): void
+    public function regenerateRemaining(Loan $loan, ?int $duration = null, ?int $repaymentEvery = null, ?string $interestRate = null): void
     {
         $latestVersion = (int) ($loan->schedules()->max('version') ?: 1);
         $newVersion    = $latestVersion + 1;
@@ -59,12 +57,10 @@ class LoanScheduleService
             principal: (string) $loan->outstanding_principal,
             annualRatePercent: (string) ($interestRate ?? $loan->interest_rate),
             interestRateFrequencyType: $loan->interest_rate_frequency_type,
-            interestCalculationPeriodType: $loan->interest_calculation_period_type,
-            interestCalculationDaysInYear: (int) $loan->interest_calculation_days_in_year,
             repaymentEvery: $repaymentEvery ?? (int) $loan->repayment_every,
             repaymentFrequencyType: $loan->repayment_frequency_type,
-            numberOfRepayments: $numberOfRepayments ?? (int) $loan->number_of_repayments,
-            amortizationMethod: $loan->amortization_method,
+            duration: $duration ?? (int) $loan->duration,
+            interestMethod: $loan->interest_method,
             startDate: Carbon::today(),
         );
 
@@ -74,6 +70,39 @@ class LoanScheduleService
         }
     }
 
+    // Mirrors regenerateRemaining() exactly (same calculate() call, same defaulting of
+    // unset params to the loan's current values) but writes nothing — used to show a
+    // reschedule/restructure/top-up's effect before anyone commits to requesting it.
+    // $principalOverride lets a caller preview against a hypothetical principal (e.g.
+    // Top-Up's outstanding + topup_amount, or Restructure's post-capitalization/waiver
+    // figure) instead of the loan's current outstanding_principal.
+    public function previewRemaining(
+        Loan $loan,
+        ?int $duration = null,
+        ?int $repaymentEvery = null,
+        ?string $interestRate = null,
+        ?string $principalOverride = null,
+    ): array {
+        $rows = $this->calculate(
+            principal: $principalOverride ?? (string) $loan->outstanding_principal,
+            annualRatePercent: (string) ($interestRate ?? $loan->interest_rate),
+            interestRateFrequencyType: $loan->interest_rate_frequency_type,
+            repaymentEvery: $repaymentEvery ?? (int) $loan->repayment_every,
+            repaymentFrequencyType: $loan->repayment_frequency_type,
+            duration: $duration ?? (int) $loan->duration,
+            interestMethod: $loan->interest_method,
+            startDate: Carbon::today(),
+        );
+
+        $totalInterest = array_reduce($rows, fn ($carry, $row) => bcadd($carry, (string) $row['interest_due'], 2), '0.00');
+
+        return [
+            'maturity_date'   => end($rows)['due_date'],
+            'total_interest'  => $totalInterest,
+            'installments'    => $rows,
+        ];
+    }
+
     /**
      * Computes the same schedule generate() would persist, for a product + hypothetical
      * terms that may not belong to a saved loan yet — nothing is written. Used to show the
@@ -81,7 +110,7 @@ class LoanScheduleService
      *
      * @return array{start_date: string, maturity_date: string, total_interest: string, installment_amount: string, installments: array<int, array<string, mixed>>}
      */
-    public function preview(LoanProduct $product, string $principal, int $numberOfRepayments, ?Carbon $startDate = null): array
+    public function preview(LoanProduct $product, string $principal, int $duration, ?Carbon $startDate = null): array
     {
         $startDate ??= Carbon::today();
 
@@ -89,22 +118,49 @@ class LoanScheduleService
             principal: $principal,
             annualRatePercent: (string) $product->interest_rate,
             interestRateFrequencyType: $product->interest_rate_frequency_type,
-            interestCalculationPeriodType: $product->interest_calculation_period_type,
-            interestCalculationDaysInYear: (int) $product->interest_calculation_days_in_year,
             repaymentEvery: (int) $product->repayment_every,
             repaymentFrequencyType: $product->repayment_frequency_type,
-            numberOfRepayments: $numberOfRepayments,
-            amortizationMethod: $product->amortization_method,
+            duration: $duration,
+            interestMethod: $product->interest_method,
             startDate: $startDate,
         );
 
         $totalInterest = array_reduce($rows, fn ($carry, $row) => bcadd($carry, (string) $row['interest_due'], 2), '0.00');
 
-        // Only a fixed figure for equal_installments (EMI) — equal_principal's total
-        // installment amount declines every period, so there's no single number to report.
-        $installmentAmount = $product->amortization_method === 'equal_installments'
-            ? bcadd((string) $rows[0]['principal_due'], (string) $rows[0]['interest_due'], 2)
-            : null;
+        // Always a fixed figure now — Equal Installments is the only amortization
+        // method left, so the installment amount is constant across the schedule.
+        $installmentAmount = bcadd((string) $rows[0]['principal_due'], (string) $rows[0]['interest_due'], 2);
+
+        return [
+            'start_date'          => $startDate->toDateString(),
+            'maturity_date'       => end($rows)['due_date'],
+            'total_interest'      => $totalInterest,
+            'installment_amount'  => $installmentAmount,
+            'installments'        => $rows,
+        ];
+    }
+
+    // Same output shape as preview(), but reads the loan's own already-snapshotted terms
+    // (interest_rate, repayment_every, ...) instead of a product's live ones — used to
+    // show an approver exactly the schedule generate() will persist at approval, which
+    // may differ from what the product currently offers if it's been edited since booking.
+    public function previewForLoan(Loan $loan): array
+    {
+        $startDate = Carbon::today();
+
+        $rows = $this->calculate(
+            principal: (string) $loan->principal_amount,
+            annualRatePercent: (string) $loan->interest_rate,
+            interestRateFrequencyType: $loan->interest_rate_frequency_type,
+            repaymentEvery: (int) $loan->repayment_every,
+            repaymentFrequencyType: $loan->repayment_frequency_type,
+            duration: (int) $loan->duration,
+            interestMethod: $loan->interest_method,
+            startDate: $startDate,
+        );
+
+        $totalInterest = array_reduce($rows, fn ($carry, $row) => bcadd($carry, (string) $row['interest_due'], 2), '0.00');
+        $installmentAmount = bcadd((string) $rows[0]['principal_due'], (string) $rows[0]['interest_due'], 2);
 
         return [
             'start_date'          => $startDate->toDateString(),
@@ -120,12 +176,10 @@ class LoanScheduleService
         string $principal,
         string $annualRatePercent,
         string $interestRateFrequencyType,
-        string $interestCalculationPeriodType,
-        int $interestCalculationDaysInYear,
         int $repaymentEvery,
         string $repaymentFrequencyType,
-        int $numberOfRepayments,
-        string $amortizationMethod,
+        int $duration,
+        string $interestMethod,
         Carbon $startDate,
     ): array {
         $annualRate     = $this->toAnnualRate($annualRatePercent, $interestRateFrequencyType);
@@ -133,11 +187,71 @@ class LoanScheduleService
         // Periodic rate as a fraction (not a percent) — e.g. 24% p.a. / 12 periods/yr = 0.02.
         $periodicRate = bcdiv(bcdiv($annualRate, '100', self::BC_SCALE), $periodsPerYear, self::BC_SCALE);
 
-        $dueDates = $this->buildDueDates($startDate, $repaymentEvery, $repaymentFrequencyType, $numberOfRepayments);
+        $dueDates = $this->buildDueDates($startDate, $repaymentEvery, $repaymentFrequencyType, $duration);
 
-        return $amortizationMethod === 'equal_principal'
-            ? $this->calculateEqualPrincipal($principal, $periodicRate, $annualRate, $interestCalculationPeriodType, $interestCalculationDaysInYear, $startDate, $dueDates)
-            : $this->calculateEqualInstallments($principal, $periodicRate, $annualRate, $interestCalculationPeriodType, $interestCalculationDaysInYear, $startDate, $dueDates);
+        if ($interestMethod === 'flat') {
+            return $this->calculateFlat($principal, $annualRate, $startDate, $dueDates);
+        }
+
+        return $this->calculateEqualInstallments($principal, $periodicRate, $annualRate, $startDate, $dueDates);
+    }
+
+    // Flat interest: interest is charged on the ORIGINAL principal for every period, not
+    // the declining balance — total_interest = principal * periodicRate * n, split evenly
+    // across installments (constant interest per period). Principal is likewise split
+    // evenly (principal / n) since a constant interest component makes the
+    // equal-installment and equal-principal amortization patterns converge to the same
+    // thing under flat interest — there's no separate EMI formula for flat loans, just an
+    // equal split of both components. Produces materially lower total interest than the
+    // declining-balance methods above for the same nominal rate, because interest is never
+    // recalculated on a shrinking balance.
+    private function calculateFlat(
+        string $principal,
+        string $annualRate,
+        Carbon $startDate,
+        array $dueDates,
+    ): array {
+        $n = count($dueDates);
+        $principalPerPeriod = bcdiv($principal, (string) $n, 2);
+
+        $rows        = [];
+        $opening     = $principal;
+        $periodStart = $startDate->copy();
+        $totalInterestAllocated = '0.00';
+
+        // Interest for a single period, always computed against the ORIGINAL principal
+        // (never the declining $opening), then that same figure is reused for every period.
+        $flatPeriodInterest = $this->periodInterest($principal, $annualRate, $startDate, $dueDates[0] ?? $startDate);
+
+        foreach ($dueDates as $index => $dueDate) {
+            $isLast = $index === $n - 1;
+
+            $principalDue = $isLast ? $opening : $principalPerPeriod;
+            $closing      = $isLast ? '0.00' : bcsub($opening, $principalDue, 2);
+
+            // Last installment absorbs any rounding remainder so the schedule sums exactly
+            // to the total flat interest computed once up front.
+            $totalFlatInterest = bcmul($flatPeriodInterest, (string) $n, 2);
+            $interestDue = $isLast
+                ? bcsub($totalFlatInterest, $totalInterestAllocated, 2)
+                : $flatPeriodInterest;
+
+            $rows[] = [
+                'installment_number'         => $index + 1,
+                'due_date'                   => $dueDate->toDateString(),
+                'opening_principal_balance'  => $opening,
+                'principal_due'               => $principalDue,
+                'interest_due'                => $interestDue,
+                'closing_principal_balance'  => $closing,
+                'status'                      => 'pending',
+            ];
+
+            $opening     = $closing;
+            $periodStart = $dueDate->copy();
+            $totalInterestAllocated = bcadd($totalInterestAllocated, $interestDue, 2);
+        }
+
+        return $rows;
     }
 
     // EMI = P * r * (1+r)^n / ((1+r)^n - 1). bcmath has no native bcpow for non-integer
@@ -146,8 +260,6 @@ class LoanScheduleService
         string $principal,
         string $periodicRate,
         string $annualRate,
-        string $interestCalculationPeriodType,
-        int $interestCalculationDaysInYear,
         Carbon $startDate,
         array $dueDates,
     ): array {
@@ -171,7 +283,7 @@ class LoanScheduleService
         foreach ($dueDates as $index => $dueDate) {
             $isLast = $index === $n - 1;
 
-            $interestDue = $this->periodInterest($opening, $periodicRate, $annualRate, $interestCalculationPeriodType, $interestCalculationDaysInYear, $periodStart, $dueDate);
+            $interestDue = $this->periodInterest($opening, $annualRate, $periodStart, $dueDate);
             $principalDue = $isLast ? $opening : bcsub($installment, $interestDue, 2);
             // Guard against a rounding-driven negative on the very last period.
             if (bccomp($principalDue, $opening, 2) > 0) {
@@ -199,70 +311,19 @@ class LoanScheduleService
         return $rows;
     }
 
-    // Fixed principal per period (remainder absorbed by the last installment), interest
-    // recalculated each period on the declining opening balance — the straight-line
-    // alternative to EMI, front-loads principal repayment so total interest paid is lower
-    // than the equivalent EMI loan for the same nominal rate/tenor (expected, not a bug).
-    private function calculateEqualPrincipal(
-        string $principal,
-        string $periodicRate,
-        string $annualRate,
-        string $interestCalculationPeriodType,
-        int $interestCalculationDaysInYear,
-        Carbon $startDate,
-        array $dueDates,
-    ): array {
-        $n = count($dueDates);
-        $principalPerPeriod = bcdiv($principal, (string) $n, 2);
-
-        $rows        = [];
-        $opening     = $principal;
-        $periodStart = $startDate->copy();
-        $allocated   = '0.00';
-
-        foreach ($dueDates as $index => $dueDate) {
-            $isLast = $index === $n - 1;
-
-            $interestDue = $this->periodInterest($opening, $periodicRate, $annualRate, $interestCalculationPeriodType, $interestCalculationDaysInYear, $periodStart, $dueDate);
-            // Last installment absorbs the rounding remainder so the schedule sums exactly to principal.
-            $principalDue = $isLast ? $opening : $principalPerPeriod;
-            $closing      = $isLast ? '0.00' : bcsub($opening, $principalDue, 2);
-
-            $rows[] = [
-                'installment_number'         => $index + 1,
-                'due_date'                   => $dueDate->toDateString(),
-                'opening_principal_balance'  => $opening,
-                'principal_due'               => $principalDue,
-                'interest_due'                => $interestDue,
-                'closing_principal_balance'  => $closing,
-                'status'                      => 'pending',
-            ];
-
-            $opening     = $closing;
-            $periodStart = $dueDate->copy();
-            $allocated   = bcadd($allocated, $principalDue, 2);
-        }
-
-        return $rows;
-    }
-
+    // Always real calendar days per period, over a 365-day year — both used to be
+    // per-product configurable (Interest Calculation Period, Days in Year), now
+    // hardcoded since every product used the same values in practice.
     private function periodInterest(
         string $openingBalance,
-        string $periodicRate,
         string $annualRate,
-        string $interestCalculationPeriodType,
-        int $interestCalculationDaysInYear,
         Carbon $periodStart,
         Carbon $periodEnd,
     ): string {
-        if ($interestCalculationPeriodType === 'daily') {
-            $days      = (string) $periodStart->diffInDays($periodEnd);
-            $dailyRate = bcdiv(bcdiv($annualRate, '100', self::BC_SCALE), (string) $interestCalculationDaysInYear, self::BC_SCALE);
+        $days      = (string) $periodStart->diffInDays($periodEnd);
+        $dailyRate = bcdiv(bcdiv($annualRate, '100', self::BC_SCALE), '365', self::BC_SCALE);
 
-            return bcmul(bcmul($openingBalance, $dailyRate, self::BC_SCALE), $days, 2);
-        }
-
-        return bcmul($openingBalance, $periodicRate, 2);
+        return bcmul(bcmul($openingBalance, $dailyRate, self::BC_SCALE), $days, 2);
     }
 
     private function toAnnualRate(string $rate, string $frequencyType): string
@@ -289,12 +350,12 @@ class LoanScheduleService
     }
 
     /** @return Carbon[] */
-    private function buildDueDates(Carbon $startDate, int $repaymentEvery, string $repaymentFrequencyType, int $numberOfRepayments): array
+    private function buildDueDates(Carbon $startDate, int $repaymentEvery, string $repaymentFrequencyType, int $duration): array
     {
         $dates   = [];
         $current = $startDate->copy();
 
-        for ($i = 1; $i <= $numberOfRepayments; $i++) {
+        for ($i = 1; $i <= $duration; $i++) {
             $current = match ($repaymentFrequencyType) {
                 'days'   => $current->copy()->addDays($repaymentEvery),
                 'weeks'  => $current->copy()->addWeeks($repaymentEvery),

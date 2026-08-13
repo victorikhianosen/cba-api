@@ -11,15 +11,18 @@ use App\Enums\Transaction\TransactionStatus;
 use App\Models\Account;
 use App\Models\Transaction;
 use App\Services\GeneralLedger\GeneralLedgerPostingService;
+use App\Services\Notification\NotificationService;
 use App\Support\ReferenceGenerator;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
-// The single place allowed to mutate account_balance/available_balance — every channel (admin postings, mobile, internet banking) must go through debit()/credit() here. Callers must invoke from inside their own DB::transaction() so lockForUpdate() holds until commit. Every leg also mirrors into the account's product ACCOUNT_CONTROL GL so the trial balance stays reconciled.
+// The single place allowed to mutate account_balance/available_balance — every channel (admin postings, mobile, internet banking) must go through debit()/credit() here. Callers must invoke from inside their own DB::transaction() so lockForUpdate() holds until commit. Every leg also mirrors into the account's product ACCOUNT_CONTROL GL so the trial balance stays reconciled, and (being the single choke point every money movement passes through) sends the account's own customer a Credit/Debit Alert — true for every channel, not just admin-initiated ones.
 class AccountPostingService
 {
     public function __construct(
         private GeneralLedgerPostingService $glLedger,
+        private NotificationService $notifications,
     ) {}
 
     public function debit(Account $account, array $leg): Transaction
@@ -152,6 +155,31 @@ class AccountPostingService
         $debitCredit === DebitCredit::DEBIT
             ? $this->glLedger->debit($controlGeneralLedger, $leg)
             : $this->glLedger->credit($controlGeneralLedger, $leg);
+
+        // Every channel that moves money in/out of this account lands here, so this is
+        // the one place a Credit/Debit Alert can be sent without every caller (loans,
+        // tellers, transfers, admin postings, ...) having to remember to send its own.
+        // Skipped when there's no authenticated actor (a cron-only system posting, e.g.
+        // interest accrual) — communications.actor_id/actor_type are non-nullable, and
+        // there's no real "who did this" to attribute a system-triggered movement to.
+        $actor = Auth::guard('user')->user();
+
+        if ($actor) {
+            $customer = $account->customer ?? $account->loadMissing('customer')->customer;
+
+            $this->notifications->notifyCustomerEmail(
+                actor: $actor,
+                customer: $customer,
+                type: $debitCredit === DebitCredit::CREDIT ? 'account_credit_alert' : 'account_debit_alert',
+                subject: $debitCredit === DebitCredit::CREDIT ? 'Credit Alert' : 'Debit Alert',
+                body: "Dear " . trim("{$customer?->first_name} {$customer?->last_name}") . ",<br><br>"
+                    . "Your account <strong>{$account->account_number}</strong> has been " . ($debitCredit === DebitCredit::CREDIT ? 'credited' : 'debited') . " with <strong>" . number_format((float) $amount, 2) . "</strong>.<br><br>"
+                    . ($leg['narration'] ?? null ? "Narration: <strong>{$leg['narration']}</strong><br>" : '')
+                    . "Available Balance: <strong>" . number_format((float) $account->available_balance, 2) . "</strong><br>"
+                    . "Reference: <strong>{$transaction->reference}</strong><br><br>"
+                    . "Thank you for banking with us.",
+            );
+        }
 
         Log::channel('accounts')->info('account_transaction', [
             'transaction_id'           => $transaction->id,

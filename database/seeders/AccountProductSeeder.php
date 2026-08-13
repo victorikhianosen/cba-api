@@ -11,7 +11,7 @@ use App\Models\Currency;
 use App\Models\GeneralLedger;
 use App\Models\LoanProduct;
 use App\Services\AccountProduct\AccountProductService;
-use App\Services\LoanProduct\LoanProductService;
+use App\Services\Loan\LoanProductService;
 use Illuminate\Database\Seeder;
 
 class AccountProductSeeder extends Seeder
@@ -22,6 +22,8 @@ class AccountProductSeeder extends Seeder
 
         $ngn = Currency::where('code', 'NGN')->firstOrFail();
         $usd = Currency::where('code', 'USD')->firstOrFail();
+        $gbp = Currency::where('code', 'GBP')->firstOrFail();
+        $eur = Currency::where('code', 'EUR')->firstOrFail();
 
         $this->seedSavingsProduct($ngn);
         $this->seedCurrentProduct($ngn);
@@ -30,6 +32,8 @@ class AccountProductSeeder extends Seeder
         $this->seedVirtualProduct($ngn);
         $this->seedWalletProduct($usd, 'USD ');
         $this->seedVirtualProduct($usd, 'USD ');
+        $this->seedForeignSavingsProduct($gbp, 'GBP');
+        $this->seedForeignSavingsProduct($eur, 'EUR');
 
         $this->seedLoanProduct($ngn);
 
@@ -205,33 +209,28 @@ class AccountProductSeeder extends Seeder
             'description'                        => 'Unsecured personal loan product seeded for testing — 24% p.a., 12 monthly installments, reducing-balance amortization.',
             'currency_id'                        => $currency->id,
             'interest_rate'                      => 24,
+            'management_fee_percentage'          => 1,
+            'processing_fee_percentage'           => 2,
             'interest_rate_frequency_type'       => 'per_year',
             'interest_method'                    => 'declining_balance',
-            'interest_calculation_period_type'   => 'same_as_repayment_period',
-            'interest_calculation_days_in_year'  => '365',
             'min_principal_amount'               => 50000,
             'max_principal_amount'               => 5000000,
-            'default_principal_amount'           => 1000000,
             'repayment_every'                    => 1,
             'repayment_frequency_type'            => 'months',
-            'number_of_repayments'                => 12,
-            'min_number_of_repayments'            => 3,
-            'max_number_of_repayments'            => 24,
-            'amortization_method'                => 'equal_installments',
-            'days_in_month_type'                 => 'actual',
             'penalty_interest_rate'              => 5,
             'payment_allocation_order'           => ['penalty', 'fee', 'interest', 'principal'],
             'general_ledgers' => $this->mappingsFor(LoanProductType::required(), [
-                'FUND_SOURCE'            => 'loan_fund_source',
                 'LOAN_PORTFOLIO'         => 'loan_portfolio',
                 'INTEREST_ON_LOANS'      => 'loan_interest_on_loans',
                 'INCOME_FROM_FEES'       => 'loan_income_from_fees',
                 'INCOME_FROM_PENALTIES'  => 'loan_income_from_penalties',
                 'LOSSES_WRITTEN_OFF'     => 'loan_losses_written_off',
-                'TRANSFERS_SUSPENSE'     => 'loan_transfers_suspense',
                 'OVERPAYMENT'            => 'loan_overpayment',
                 'INTEREST_RECEIVABLE'    => 'loan_interest_receivable',
                 'SUSPENDED_INTEREST'     => 'loan_suspended_interest',
+                'RECOVERY_INCOME'        => 'loan_recovery_income',
+                'MANAGEMENT_FEE_INCOME'  => 'loan_management_fee_income',
+                'PROCESSING_FEE_INCOME'  => 'loan_processing_fee_income',
             ]),
         ]);
 
@@ -264,6 +263,39 @@ class AccountProductSeeder extends Seeder
      * @param AccountProductType[]|LoanProductType[] $types
      * @param array<string, string> $glNameByType
      */
+    // GBP/EUR — a plain savings-type product per currency (no dedicated current/domiciliary
+    // split like NGN/USD get), just enough to give demo customers an account to hold each
+    // of these currencies. GL names must match GeneralLedgerSeeder::GBP_DEFINITIONS/EUR_DEFINITIONS.
+    private function seedForeignSavingsProduct(Currency $currency, string $prefix): void
+    {
+        $name = "{$prefix} Savings Account";
+
+        if (AccountProduct::where('name', $name)->exists()) {
+            return;
+        }
+
+        $glPrefix = strtolower($prefix);
+
+        $accountProduct = app(AccountProductService::class)->create([
+            'name'                         => $name,
+            'product_type'                 => 'savings',
+            'description'                  => "{$prefix}-denominated savings account product for customers holding {$prefix} balances.",
+            'currency_id'                  => $currency->id,
+            'interest_rate'                => 0,
+            'min_required_opening_balance' => 100,
+            'min_required_balance'         => 0,
+            'general_ledgers'              => $this->mappingsFor(AccountProductType::required(), [
+                'ACCOUNT_CONTROL'       => "{$glPrefix}_savings_control",
+                'INTEREST_ON_ACCOUNT'   => "{$glPrefix}_interest_on_savings",
+                'INCOME_FROM_FEES'      => "{$glPrefix}_income_from_fees",
+                'INCOME_FROM_PENALTIES' => "{$glPrefix}_income_from_penalties",
+                'TRANSFERS_SUSPENSE'    => "{$glPrefix}_transfers_suspense",
+            ]),
+        ]);
+
+        app(AccountProductService::class)->approve($accountProduct);
+    }
+
     private function mappingsFor(array $types, array $glNameByType): array
     {
         return collect($types)

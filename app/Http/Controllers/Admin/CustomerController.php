@@ -18,6 +18,7 @@ use App\Http\Requests\Admin\Customer\UpdateCustomerStatusRequest;
 use App\Http\Requests\Admin\Customer\UpdateDocumentRequest;
 use App\Http\Requests\Admin\Customer\UploadDocumentsRequest;
 use App\Http\Resources\Admin\Account\AccountResource;
+use App\Http\Resources\Admin\Customer\CustomerBulkImportRowResource;
 use App\Http\Resources\Admin\Customer\CustomerListResource;
 use App\Http\Resources\Admin\Customer\CustomerLookupResource;
 use App\Http\Resources\Admin\Customer\CustomerResource;
@@ -109,11 +110,58 @@ class CustomerController extends Controller
 
     public function bulkImport(BulkImportCustomersRequest $request): JsonResponse
     {
-        $result = $this->customers->bulkImport($request->file('file'));
+        $batchId = $this->customers->startBulkImport($request->file('file'));
 
         return $this->success(
-            message: "{$result['created']} customer(s) created, {$result['failed']} failed.",
-            data: $result,
+            message: 'Bulk upload queued — the rows will be processed shortly.',
+            data: ['batch_id' => $batchId],
+            responseCode: '000',
+            statusCode: 202,
+        );
+    }
+
+    public function bulkImports(Request $request): JsonResponse
+    {
+        $batches = $this->customers->listBulkImportBatches($request->integer('per_page', 15));
+
+        return $this->success(
+            message: 'Bulk import batches retrieved successfully.',
+            data: $batches->items(),
+            meta: [
+                'current_page' => $batches->currentPage(),
+                'last_page'    => $batches->lastPage(),
+                'per_page'     => $batches->perPage(),
+                'total'        => $batches->total(),
+            ],
+        );
+    }
+
+    public function bulkImportShow(string $batchId, Request $request): JsonResponse
+    {
+        try {
+            $result = $this->customers->findBulkImportBatch(
+                $batchId,
+                $request->integer('per_page', 20),
+                $request->string('status')->trim()->value() ?: null,
+            );
+        } catch (ModelNotFoundException $e) {
+            return $this->error(
+                message: 'The requested bulk import batch was not found.',
+                responseCode: '404',
+                statusCode: 404,
+            );
+        }
+
+        return $this->success(
+            message: 'Bulk import batch retrieved successfully.',
+            data: CustomerBulkImportRowResource::collection($result['rows']),
+            meta: [
+                'summary'      => $result['summary'],
+                'current_page' => $result['rows']->currentPage(),
+                'last_page'    => $result['rows']->lastPage(),
+                'per_page'     => $result['rows']->perPage(),
+                'total'        => $result['rows']->total(),
+            ],
         );
     }
 

@@ -19,15 +19,25 @@ use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\FinancialTransactionController;
 use App\Http\Controllers\Admin\FundGlController;
 use App\Http\Controllers\Admin\GeneralLedgerController;
-use App\Http\Controllers\Admin\InvestmentController;
-use App\Http\Controllers\Admin\InvestmentPartialLiquidationController;
+use App\Http\Controllers\Admin\Investment\InvestmentController;
+use App\Http\Controllers\Admin\Investment\InvestmentPartialLiquidationController;
 use App\Http\Controllers\Admin\AccountStatementTemplateController;
-use App\Http\Controllers\Admin\InvestmentLetterTemplateController;
-use App\Http\Controllers\Admin\InvestmentProductController;
+use App\Http\Controllers\Admin\Investment\InvestmentLetterTemplateController;
+use App\Http\Controllers\Admin\Investment\InvestmentProductController;
 use App\Http\Controllers\Admin\JournalEntryController;
-use App\Http\Controllers\Admin\LoanClassificationRuleController;
-use App\Http\Controllers\Admin\LoanController;
-use App\Http\Controllers\Admin\LoanProductController;
+use App\Http\Controllers\Admin\Loan\LoanClassificationRuleController;
+use App\Http\Controllers\Admin\Loan\LoanCollateralController;
+use App\Http\Controllers\Admin\Loan\LoanCollectionController;
+use App\Http\Controllers\Admin\Loan\LoanController;
+use App\Http\Controllers\Admin\Loan\LoanGuarantorController;
+use App\Http\Controllers\Admin\Loan\LoanRecoveryController;
+use App\Http\Controllers\Admin\Loan\LoanRepaymentController;
+use App\Http\Controllers\Admin\Loan\LoanTransactionController;
+use App\Http\Controllers\Admin\Loan\LoanWriteOffController;
+use App\Http\Controllers\Admin\Loan\LoanRestructureController;
+use App\Http\Controllers\Admin\Loan\LoanTopupController;
+use App\Http\Controllers\Admin\Loan\LoanRefinanceController;
+use App\Http\Controllers\Admin\Loan\LoanProductController;
 use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\PermissionController;
 use App\Http\Controllers\Admin\PostingController;
@@ -162,6 +172,7 @@ Route::middleware(['user', 'session.lock'])->group(function () {
         Route::post('/', 'store')->middleware('permission:create_account_tiers');
         Route::get('{id}', 'show')->middleware('permission:view_account_tiers');
         Route::put('{id}', 'update')->middleware('permission:update_account_tiers');
+        Route::delete('{id}', 'destroy')->middleware('permission:delete_account_tiers');
     });
 
     Route::prefix('loan-products')->controller(LoanProductController::class)->group(function () {
@@ -231,6 +242,8 @@ Route::middleware(['user', 'session.lock'])->group(function () {
         Route::post('bulk', 'bulkUpdate')->middleware('permission:update_customers');
         Route::get('bulk-import/template', 'bulkImportTemplate')->middleware('permission:create_customers');
         Route::post('bulk-import', 'bulkImport')->middleware('permission:create_customers');
+        Route::get('bulk-imports', 'bulkImports')->middleware('permission:create_customers');
+        Route::get('bulk-imports/{batchId}', 'bulkImportShow')->middleware('permission:create_customers');
         Route::get('lookup', 'lookup')->middleware('permission:view_customers');
         Route::get('export/csv', 'exportCsvFile')->middleware('permission:view_customers');
         Route::get('export/excel', 'exportExcelFile')->middleware('permission:view_customers');
@@ -328,10 +341,86 @@ Route::middleware(['user', 'session.lock'])->group(function () {
         Route::get('{id}', 'show')->middleware('permission:view_loans');
         Route::get('{id}/transactions', 'transactions')->middleware('permission:view_loans');
         Route::get('{id}/schedule', 'schedule')->middleware('permission:view_loans');
+        Route::get('{id}/approval-schedule/preview', 'previewApprovalSchedule')->middleware('permission:approve_loans');
+        Route::post('{id}/review', 'review')->middleware(['permission:review_loans', 'totp']);
         Route::post('{id}/approve', 'approve')->middleware(['permission:approve_loans', 'totp']);
         Route::post('{id}/reject', 'reject')->middleware('permission:approve_loans');
-        Route::post('{id}/repayment/preview', 'previewRepayment')->middleware('permission:repay_loans');
-        Route::post('{id}/repay', 'repay')->middleware(['permission:repay_loans', 'totp']);
+    });
+
+    Route::get('loan-transactions', [LoanTransactionController::class, 'index'])->middleware('permission:view_loans');
+
+    Route::post('loans/{id}/repayment/preview', [LoanRepaymentController::class, 'previewSchedule'])->middleware('permission:repay_loans');
+    Route::post('loans/{id}/repay', [LoanRepaymentController::class, 'store'])->middleware('permission:repay_loans');
+    Route::get('loans/{id}/repayments', [LoanRepaymentController::class, 'forLoan'])->middleware('permission:view_loans');
+    Route::prefix('loan-repayments')->controller(LoanRepaymentController::class)->group(function () {
+        Route::get('/', 'index')->middleware('permission:view_loans');
+        Route::get('{id}', 'show')->middleware('permission:view_loans');
+        Route::post('{id}/approve', 'approve')->middleware(['permission:repay_loans', 'totp']);
+        Route::post('{id}/reject', 'reject')->middleware('permission:repay_loans');
+    });
+
+    Route::get('loans/{id}/collaterals', [LoanCollateralController::class, 'index'])->middleware('permission:view_loans');
+    Route::post('loans/{id}/collaterals', [LoanCollateralController::class, 'store'])->middleware('permission:manage_loan_collateral');
+    Route::prefix('loan-collaterals')->controller(LoanCollateralController::class)->group(function () {
+        Route::put('{id}', 'update')->middleware('permission:manage_loan_collateral');
+        Route::post('{id}/release', 'release')->middleware('permission:manage_loan_collateral');
+        Route::post('{id}/realize', 'realize')->middleware('permission:manage_loan_collateral');
+    });
+
+    Route::get('loans/{id}/guarantors', [LoanGuarantorController::class, 'index'])->middleware('permission:view_loans');
+    Route::post('loans/{id}/guarantors', [LoanGuarantorController::class, 'store'])->middleware('permission:manage_loan_guarantors');
+    Route::get('loan-guarantors/template', [LoanGuarantorController::class, 'downloadTemplate'])->middleware('permission:view_loans');
+    Route::prefix('loan-guarantors')->controller(LoanGuarantorController::class)->group(function () {
+        Route::post('{id}/approve', 'approve')->middleware('permission:manage_loan_guarantors');
+        Route::post('{id}/reject', 'reject')->middleware('permission:manage_loan_guarantors');
+        Route::post('{id}/release', 'release')->middleware('permission:manage_loan_guarantors');
+        Route::post('{id}/claim', 'claim')->middleware('permission:manage_loan_guarantors');
+    });
+
+    Route::prefix('loan-write-offs')->controller(LoanWriteOffController::class)->group(function () {
+        Route::get('/', 'index')->middleware('permission:view_loans');
+        Route::get('{id}', 'show')->middleware('permission:view_loans');
+        Route::post('{id}/approve', 'approve')->middleware(['permission:write_off_loans', 'totp']);
+        Route::post('{id}/reject', 'reject')->middleware('permission:write_off_loans');
+    });
+    Route::post('loans/{id}/write-off', [LoanWriteOffController::class, 'store'])->middleware('permission:write_off_loans');
+    Route::get('loans/{id}/write-offs', [LoanWriteOffController::class, 'forLoan'])->middleware('permission:view_loans');
+
+    Route::get('loans/{id}/recoveries', [LoanRecoveryController::class, 'index'])->middleware('permission:view_loans');
+    Route::post('loans/{id}/recoveries', [LoanRecoveryController::class, 'store'])->middleware(['permission:recover_loans', 'totp']);
+
+    Route::get('loans/{id}/collections', [LoanCollectionController::class, 'index'])->middleware('permission:view_loans');
+    Route::post('loans/{id}/collections', [LoanCollectionController::class, 'store'])->middleware('permission:manage_loan_collections');
+    Route::prefix('loan-collections')->controller(LoanCollectionController::class)->group(function () {
+        Route::get('queue', 'queue')->middleware('permission:manage_loan_collections');
+        Route::post('{id}/promise-kept', 'markPromiseKept')->middleware('permission:manage_loan_collections');
+        Route::post('{id}/promise-broken', 'markPromiseBroken')->middleware('permission:manage_loan_collections');
+    });
+
+    Route::get('loans/{id}/restructures', [LoanRestructureController::class, 'index'])->middleware('permission:view_loans');
+    Route::post('loans/{id}/restructures', [LoanRestructureController::class, 'store'])->middleware('permission:restructure_loans');
+    Route::post('loans/{id}/restructures/preview', [LoanRestructureController::class, 'previewSchedule'])->middleware('permission:view_loans');
+    Route::prefix('loan-restructures')->controller(LoanRestructureController::class)->group(function () {
+        Route::get('{id}', 'show')->middleware('permission:view_loans');
+        Route::post('{id}/approve', 'approve')->middleware(['permission:restructure_loans', 'totp']);
+        Route::post('{id}/reject', 'reject')->middleware('permission:restructure_loans');
+    });
+
+    Route::get('loans/{id}/topups', [LoanTopupController::class, 'index'])->middleware('permission:view_loans');
+    Route::post('loans/{id}/topups', [LoanTopupController::class, 'store'])->middleware('permission:create_loans');
+    Route::post('loans/{id}/topups/preview', [LoanTopupController::class, 'previewSchedule'])->middleware('permission:view_loans');
+    Route::prefix('loan-topups')->controller(LoanTopupController::class)->group(function () {
+        Route::get('{id}', 'show')->middleware('permission:view_loans');
+        Route::post('{id}/approve', 'approve')->middleware(['permission:approve_loans', 'totp']);
+        Route::post('{id}/reject', 'reject')->middleware('permission:approve_loans');
+    });
+
+    Route::get('loans/{id}/refinances', [LoanRefinanceController::class, 'index'])->middleware('permission:view_loans');
+    Route::post('loans/{id}/refinances', [LoanRefinanceController::class, 'store'])->middleware('permission:create_loans');
+    Route::prefix('loan-refinances')->controller(LoanRefinanceController::class)->group(function () {
+        Route::get('{id}', 'show')->middleware('permission:view_loans');
+        Route::post('{id}/approve', 'approve')->middleware(['permission:approve_loans', 'totp']);
+        Route::post('{id}/reject', 'reject')->middleware('permission:approve_loans');
     });
 
     Route::prefix('loan-classification-rules')->controller(LoanClassificationRuleController::class)->group(function () {

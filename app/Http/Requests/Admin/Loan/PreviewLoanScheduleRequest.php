@@ -18,7 +18,7 @@ class PreviewLoanScheduleRequest extends FormRequest
         return [
             'loan_product_id'       => ['required', 'integer', 'exists:loan_products,id'],
             'principal_amount'      => ['required', 'numeric', 'min:0.01'],
-            'number_of_repayments'  => ['required', 'integer', 'min:1'],
+            'duration'  => ['required', 'integer', 'min:1'],
         ];
     }
 }

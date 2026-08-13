@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
-use App\Mail\CoreBankMail;
 use App\Services\Account\AccountService;
+use App\Services\Communication\CommunicationService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Mail;
 
 class SendAccountStatementEmailJob implements ShouldQueue
 {
@@ -27,7 +26,7 @@ class SendAccountStatementEmailJob implements ShouldQueue
         public ?string $to = null,
     ) {}
 
-    public function handle(AccountService $accounts): void
+    public function handle(AccountService $accounts, CommunicationService $communications): void
     {
         $account  = $accounts->find($this->accountId);
         $customer = $account->customer;
@@ -50,16 +49,20 @@ class SendAccountStatementEmailJob implements ShouldQueue
         $customerName = trim("{$customer->first_name} {$customer->last_name}") ?: ($customer->business_name ?? '');
 
         try {
-            // sendNow(), not send() — the attachment path is deleted right after this
-            // call (still within this job's own handle()), so the mail must go out
-            // synchronously here rather than be queued a second time.
-            Mail::to($customer->email)->sendNow(new CoreBankMail(
-                subjectLine: 'Your Statement of Account',
-                content: "Dear {$customerName},<br><br>Please find attached your statement of account."
+            // sendEmailWithAttachments() sends synchronously (sendNow) — the attachment
+            // path is deleted right after this call (still within this job's own
+            // handle()), so the mail must go out before that happens, not be queued a
+            // second time. Also logs the send in the Communication module.
+            $communications->sendEmailWithAttachments(
+                actor: $customer,
+                type: 'account_statement',
+                recipient: $customer->email,
+                body: "Dear {$customerName},<br><br>Please find attached your statement of account."
                     . "<br><br>This document is password-protected — use your account number to open it.",
-                files: [$tempPath],
+                subject: 'Your Statement of Account',
+                filePaths: [$tempPath],
                 fileNames: [$tempPath => 'statement_of_account.pdf'],
-            ));
+            );
         } finally {
             @unlink($tempPath);
         }

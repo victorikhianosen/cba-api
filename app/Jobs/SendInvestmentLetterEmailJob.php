@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
-use App\Mail\CoreBankMail;
+use App\Services\Communication\CommunicationService;
 use App\Services\Investment\InvestmentService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Bus\Queueable;
@@ -12,7 +12,6 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Mail;
 
 class SendInvestmentLetterEmailJob implements ShouldQueue
 {
@@ -26,7 +25,7 @@ class SendInvestmentLetterEmailJob implements ShouldQueue
         public int $investmentId,
     ) {}
 
-    public function handle(InvestmentService $investments): void
+    public function handle(InvestmentService $investments, CommunicationService $communications): void
     {
         $investment = $investments->find($this->investmentId);
         $customer   = $investment->customer;
@@ -45,14 +44,18 @@ class SendInvestmentLetterEmailJob implements ShouldQueue
         $pdf->save($tempPath);
 
         try {
-            // sendNow(), not send() — the attachment path is deleted right after this
-            // call (still within this job's own handle()), so the mail must go out
-            // synchronously here rather than be queued a second time.
-            Mail::to($customer->email)->sendNow(new CoreBankMail(
-                subjectLine: 'Your Investment Certificate — ' . $investment->account_number,
-                content: "Dear {$data['customerName']},<br><br>Please find attached your investment certificate for account {$investment->account_number}.",
-                files: [$tempPath],
-            ));
+            // sendEmailWithAttachments() sends synchronously (sendNow) — the attachment
+            // path is deleted right after this call (still within this job's own
+            // handle()), so the mail must go out before that happens, not be queued a
+            // second time. Also logs the send in the Communication module.
+            $communications->sendEmailWithAttachments(
+                actor: $customer,
+                type: 'investment_letter',
+                recipient: $customer->email,
+                body: "Dear {$data['customerName']},<br><br>Please find attached your investment certificate for account {$investment->account_number}.",
+                subject: 'Your Investment Certificate — ' . $investment->account_number,
+                filePaths: [$tempPath],
+            );
         } finally {
             @unlink($tempPath);
         }

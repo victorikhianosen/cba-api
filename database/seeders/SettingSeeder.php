@@ -22,7 +22,7 @@ class SettingSeeder extends Seeder
             'category' => 'security',
             'label'    => 'Session Lock Timeout',
             'type'     => 'integer',
-            'value'    => '300',
+            'value'    => '7200',
         ],
         [
             'key'      => 'security.authentication.google_auth_unlock',
@@ -44,6 +44,14 @@ class SettingSeeder extends Seeder
             'label'    => 'Company Logo',
             'type'     => 'image',
             'value'    => null,
+        ],
+        [
+            'key'         => 'notifications.cron_reports.recipients',
+            'category'    => 'notifications',
+            'label'       => 'Cron Report Recipients',
+            'description' => 'Email addresses that receive the full PDF report after each scheduled job (loan overdue processing, investment interest) finishes running.',
+            'type'        => 'json',
+            'value'       => '["test@example.com"]',
         ],
     ];
 

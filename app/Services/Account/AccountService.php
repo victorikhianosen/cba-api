@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Services\Account;
 
 use App\Enums\Customer\CustomerType;
-use App\Mail\CoreBankMail;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\Account;
 use App\Models\AccountProduct;
@@ -13,6 +12,7 @@ use App\Models\AccountTier;
 use App\Models\Customer;
 use App\Models\Transaction;
 use App\Services\Audit\AuditService;
+use App\Services\Communication\CommunicationService;
 use App\Services\Notification\NotificationService;
 use App\Services\Storage\FileStorageService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -20,7 +20,6 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
 class AccountService
@@ -47,6 +46,7 @@ class AccountService
         private NotificationService $notifications,
         private AccountStatementTemplateService $statementTemplates,
         private FileStorageService $files,
+        private CommunicationService $communications,
     ) {}
 
     public function find(int $id): Account
@@ -62,10 +62,11 @@ class AccountService
     }
 
     // $search matches the account number/name directly, or the owning customer's cif number/name.
-    public function list(int $perPage = 15, ?string $search = null): LengthAwarePaginator
+    public function list(int $perPage = 15, ?string $search = null, ?int $customerId = null): LengthAwarePaginator
     {
         return Account::query()
             ->with(['customer', 'accountProduct', 'currency', 'accountTier'])
+            ->when($customerId, fn ($query, $customerId) => $query->where('customer_id', $customerId))
             ->when($search, function ($query, $search) {
                 $query->where(function ($query) use ($search) {
                     $query->where('account_number', 'like', "%{$search}%")
@@ -276,14 +277,20 @@ class AccountService
 
         // primary_account is only true for the very first account a customer ever gets —
         // set once, at creation, by the line above — so it doubles as "is this the
-        // welcome email or the additional-account email" without any extra flag.
-        // CoreBankMail implements ShouldQueue, so send() queues it rather than blocking
-        // this request on delivery.
+        // welcome email or the additional-account email" without any extra flag. Routed
+        // through CommunicationService (not a raw Mail::to()) so it's logged in the
+        // Communication module like every other customer email.
         if ($customer->email) {
-            Mail::to($customer->email)->send(
-                $account->primary_account
-                    ? $this->welcomeMail($customer, $account)
-                    : $this->accountAddedMail($customer, $account)
+            $mail = $account->primary_account
+                ? $this->welcomeMail($customer, $account)
+                : $this->accountAddedMail($customer, $account);
+
+            $this->communications->sendEmail(
+                actor: $actor ?? $customer,
+                type: $account->primary_account ? 'account_welcome' : 'account_added',
+                recipient: $customer->email,
+                body: $mail['body'],
+                subject: $mail['subject'],
             );
         }
 
@@ -295,30 +302,32 @@ class AccountService
         return trim("{$customer->first_name} {$customer->last_name}") ?: ($customer->business_name ?? '');
     }
 
-    private function welcomeMail(Customer $customer, Account $account): CoreBankMail
+    /** @return array{subject: string, body: string} */
+    private function welcomeMail(Customer $customer, Account $account): array
     {
-        return new CoreBankMail(
-            subjectLine: 'Welcome to ' . config('app.name'),
-            content: "Dear {$this->customerDisplayName($customer)},<br><br>"
+        return [
+            'subject' => 'Welcome to ' . config('app.name'),
+            'body'    => "Dear {$this->customerDisplayName($customer)},<br><br>"
                 . "Welcome aboard! Your {$account->accountProduct?->name} account has been successfully opened.<br><br>"
                 . "Bank Name: <strong>" . config('app.name') . "</strong><br>"
                 . "Account Name: <strong>{$account->account_name}</strong><br>"
                 . "Account Number: <strong>{$account->account_number}</strong><br><br>"
                 . "Thank you for banking with us.",
-        );
+        ];
     }
 
-    private function accountAddedMail(Customer $customer, Account $account): CoreBankMail
+    /** @return array{subject: string, body: string} */
+    private function accountAddedMail(Customer $customer, Account $account): array
     {
-        return new CoreBankMail(
-            subjectLine: 'New Account Opened — ' . $account->accountProduct?->name,
-            content: "Dear {$this->customerDisplayName($customer)},<br><br>"
+        return [
+            'subject' => 'New Account Opened — ' . $account->accountProduct?->name,
+            'body'    => "Dear {$this->customerDisplayName($customer)},<br><br>"
                 . "A new {$account->accountProduct?->name} account has been added to your profile.<br><br>"
                 . "Bank Name: <strong>" . config('app.name') . "</strong><br>"
                 . "Account Name: <strong>{$account->account_name}</strong><br>"
                 . "Account Number: <strong>{$account->account_number}</strong><br><br>"
                 . "Thank you for banking with us.",
-        );
+        ];
     }
 
     // Opens the underlying `accounts` row for a Virtual Account. Reuses the same locked,

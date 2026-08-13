@@ -13,12 +13,15 @@ class LoanTransactionResource extends JsonResource
     {
         return [
             'id'                            => $this->id,
+            'loan_id'                        => $this->loan_id,
+            'loan_account_number'            => $this->loan_account_number,
             'type'                          => $this->type,
             'amount'                        => $this->amount,
+            'outstanding_principal_before'  => $this->outstanding_principal_before,
             'outstanding_principal_after'   => $this->outstanding_principal_after,
             'posting_id'                     => $this->posting_id,
-            'reference'                       => $this->whenLoaded('posting', fn () => $this->posting?->reference),
-            'transaction_reference'           => $this->whenLoaded('posting', fn () => $this->posting?->transaction_reference),
+            'reference'                       => $this->reference,
+            'transaction_reference'           => $this->transaction_reference,
             'loan_schedule_id'               => $this->loan_schedule_id,
             'description'                    => $this->description,
             'created_by'                      => $this->created_by,

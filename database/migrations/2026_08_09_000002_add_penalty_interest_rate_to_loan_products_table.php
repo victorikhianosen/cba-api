@@ -15,7 +15,7 @@ return new class extends Migration
             // portion of a missed installment — distinct from the loan's normal
             // interest_rate. Defaults to 0 (no penalty) rather than nullable, since every
             // repayment/overdue calculation treats "no rate configured" the same as "0%".
-            $table->decimal('penalty_interest_rate', 19, 2)->default(0)->after('overdue_days_for_npa');
+            $table->decimal('penalty_interest_rate', 19, 2)->default(0)->after('arrears_tolerance_amount');
         });
     }
 

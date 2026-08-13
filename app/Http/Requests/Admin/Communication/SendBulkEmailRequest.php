@@ -16,11 +16,13 @@ class SendBulkEmailRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'customer_ids'   => ['required', 'array', 'min:1'],
-            'customer_ids.*' => ['integer', 'exists:customers,id'],
-            'subject'        => ['required', 'string', 'max:255'],
-            'body'           => ['required', 'string'],
-            'type'           => ['nullable', 'string', 'max:100'],
+            'customer_ids'    => ['required', 'array', 'min:1'],
+            'customer_ids.*'  => ['integer', 'exists:customers,id'],
+            'subject'         => ['required', 'string', 'max:255'],
+            'body'            => ['required', 'string'],
+            'type'            => ['nullable', 'string', 'max:100'],
+            'attachments'     => ['nullable', 'array', 'max:5'],
+            'attachments.*'   => ['file', 'max:10240'],
         ];
     }
 }

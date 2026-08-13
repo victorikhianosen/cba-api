@@ -29,7 +29,11 @@ class AccountController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $accounts = $this->accounts->list($request->integer('per_page', 50), $request->string('search')->trim()->value() ?: null);
+        $accounts = $this->accounts->list(
+            $request->integer('per_page', 50),
+            $request->string('search')->trim()->value() ?: null,
+            $request->integer('customer_id') ?: null,
+        );
 
         return $this->success(
             message: 'Accounts retrieved successfully.',

@@ -23,11 +23,7 @@ class Loan extends Model
             'principal_amount'            => 'decimal:2',
             'interest_rate'                => 'decimal:2',
             'repayment_every'              => 'integer',
-            'number_of_repayments'         => 'integer',
-            'grace_on_principal_periods'   => 'integer',
-            'grace_on_interest_periods'    => 'integer',
-            'grace_interest_free_periods'  => 'integer',
-            'grace_on_arrears_ageing'      => 'integer',
+            'duration'         => 'integer',
             'arrears_tolerance_amount'     => 'decimal:2',
             'penalty_interest_rate'        => 'decimal:2',
             'payment_allocation_order'     => 'array',
@@ -46,11 +42,22 @@ class Loan extends Model
             'total_penalties_charged'      => 'decimal:2',
             'total_penalties_paid'         => 'decimal:2',
             'overpayment_balance'          => 'decimal:2',
+            'total_principal_waived'       => 'decimal:2',
+            'total_interest_waived'        => 'decimal:2',
+            'total_fees_waived'            => 'decimal:2',
+            'total_penalties_waived'       => 'decimal:2',
+            'written_off_principal'        => 'decimal:2',
+            'written_off_interest'         => 'decimal:2',
+            'total_principal_recovered'    => 'decimal:2',
+            'total_interest_recovered'     => 'decimal:2',
+            'total_penalty_recovered'      => 'decimal:2',
+            'total_fee_recovered'          => 'decimal:2',
             'last_repayment_date'          => 'date',
             'next_due_date'                => 'date',
             'days_in_arrears'              => 'integer',
             'npl_classified_at'            => 'datetime',
             'written_off_at'               => 'datetime',
+            'reviewed_at'                  => 'datetime',
             'approved_at'                  => 'datetime',
         ];
     }
@@ -90,6 +97,11 @@ class Loan extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    public function reviewedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
     public function approvedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
@@ -103,5 +115,50 @@ class Loan extends Model
     public function transactions(): HasMany
     {
         return $this->hasMany(LoanTransaction::class);
+    }
+
+    public function collaterals(): HasMany
+    {
+        return $this->hasMany(LoanCollateral::class);
+    }
+
+    public function guarantors(): HasMany
+    {
+        return $this->hasMany(LoanGuarantor::class);
+    }
+
+    public function writeOffs(): HasMany
+    {
+        return $this->hasMany(LoanWriteOff::class);
+    }
+
+    public function recoveries(): HasMany
+    {
+        return $this->hasMany(LoanRecovery::class);
+    }
+
+    public function collectionActivities(): HasMany
+    {
+        return $this->hasMany(LoanCollection::class);
+    }
+
+    public function restructures(): HasMany
+    {
+        return $this->hasMany(LoanRestructure::class);
+    }
+
+    public function topups(): HasMany
+    {
+        return $this->hasMany(LoanTopup::class);
+    }
+
+    public function refinances(): HasMany
+    {
+        return $this->hasMany(LoanRefinance::class, 'old_loan_id');
+    }
+
+    public function repayments(): HasMany
+    {
+        return $this->hasMany(LoanRepayment::class);
     }
 }

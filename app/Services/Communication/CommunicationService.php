@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Communication;
 
 use App\Jobs\SendCommunicationJob;
+use App\Mail\CoreBankMail;
 use App\Models\Communication;
 use App\Models\Customer;
 use App\Services\Audit\AuditService;
@@ -14,6 +15,7 @@ use App\Services\Communication\Channels\SmsChannel;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use InvalidArgumentException;
 use Throwable;
 
@@ -115,6 +117,64 @@ class CommunicationService
         );
     }
 
+    // For emails carrying a temp file attachment (statements, certificates) that the
+    // caller deletes right after this returns — EmailChannel's Mail::to()->send() would
+    // only enqueue a ShouldQueue Mailable, and by the time that queued job actually ran
+    // the attachment would already be gone. This sends synchronously (sendNow, bypassing
+    // the channel driver) while still producing the same logged Communication row.
+    /**
+     * @param string[] $filePaths
+     * @param array<string, string> $fileNames
+     */
+    public function sendEmailWithAttachments(
+        Model $actor,
+        string $type,
+        string $recipient,
+        string $body,
+        string $subject,
+        array $filePaths,
+        array $fileNames = [],
+    ): Communication {
+        $communication = Communication::create([
+            'actor_id'   => $actor->getKey(),
+            'actor_type' => get_class($actor),
+            'channel'    => 'email',
+            'type'       => $type,
+            'recipient'  => $recipient,
+            'subject'    => $subject,
+            'body'       => $body,
+            'payload'    => ['files' => $filePaths],
+            'status'     => 'pending',
+        ]);
+
+        try {
+            Mail::to($recipient)->sendNow(new CoreBankMail(
+                subjectLine: $subject,
+                content: $body,
+                files: $filePaths,
+                fileNames: $fileNames,
+            ));
+
+            $communication->update([
+                'status'  => 'sent',
+                'sent_at' => now(),
+            ]);
+        } catch (Throwable $e) {
+            $communication->update([
+                'status'         => 'failed',
+                'failure_reason' => $e->getMessage(),
+            ]);
+
+            Log::error('Communication send failed', [
+                'communication_id' => $communication->id,
+                'channel'          => 'email',
+                'error'            => $e->getMessage(),
+            ]);
+        }
+
+        return $communication->fresh();
+    }
+
     // Queues a send to a list of customers (respecting opt-in flags), delivered off-request via SendCommunicationJob — only validates and enqueues here.
     /** @param int[] $customerIds */
     public function sendBulkToCustomers(
@@ -125,6 +185,12 @@ class CommunicationService
         string $type,
         Model $performer,
     ): array {
+        // Defensive dedup at the boundary — customers.email is unique per customer, so
+        // deduping by id here guarantees one send per email address even if a caller
+        // (e.g. a picker built around accounts, where one customer can have several)
+        // ever passed the same customer twice.
+        $customerIds = array_values(array_unique($customerIds));
+
         $queued  = [];
         $skipped = [];
 

@@ -64,24 +64,24 @@ class GeneralLedgerSeeder extends Seeder
         ['Other Operating Income', 'income', 'fee_income'],
         ['Operating Expenses', 'expense', 'interest_expense'],
 
-        // Loan product roles (LoanProductType). Fund Source is
-        // liability-classified, not asset — LoanService::approve()/LoanRepaymentService
-        // use it as the posting party opposite the customer's account (debited on
-        // disbursement, credited on repayment, matching this system's fixed
-        // source=debit/destination=credit convention), the exact same role
-        // "Investment Savings Control" (also liability) plays for investment funding in
-        // the opposite direction. A liability-normal GL correctly shrinks on debit
-        // (funding capacity drawn down) and grows on credit (capacity replenished).
-        ['Loan Fund Source', 'liability', 'cash'],
+        // Loan product roles (LoanProductType). Loan Portfolio is the sole asset-side GL
+        // for principal movement — LoanTransactionService::moveLoanPortfolio() posts it
+        // directly opposite the customer's account (debited on disbursement/top-up,
+        // credited on repayment/refinance-payoff) as a real, balanced two-legged entry.
+        // (A separate "Fund Source" liability GL used to sit between these two legs —
+        // removed, since it produced an unbalanced third journal leg with no offsetting
+        // credit; see moveLoanPortfolio()'s docblock.)
         ['Loan Portfolio', 'asset', 'loan_portfolio'],
         ['Loan Interest On Loans', 'income', 'interest_income'],
         ['Loan Income From Fees', 'income', 'fee_income'],
         ['Loan Income From Penalties', 'income', 'penalty_income'],
         ['Loan Losses Written Off', 'expense', 'suspense'],
-        ['Loan Transfers Suspense', 'liability', 'suspense'],
         ['Loan Overpayment', 'liability', 'payable'],
         ['Loan Interest Receivable', 'asset', 'receivable'],
         ['Loan Suspended Interest', 'liability', 'suspense'],
+        ['Loan Recovery Income', 'income', 'fee_income'],
+        ['Loan Management Fee Income', 'income', 'fee_income'],
+        ['Loan Processing Fee Income', 'income', 'fee_income'],
 
         // Investment product roles (shares AccountProductType,
         // but needs its own distinct GLs — a GL can only be mapped once).
@@ -119,6 +119,8 @@ class GeneralLedgerSeeder extends Seeder
         ['USD Domiciliary Income From Penalties', 'income', 'penalty_income'],
         ['USD Domiciliary Transfers Suspense', 'liability', 'suspense'],
 
+        ['USD Cash in Vault', 'asset', 'cash'],
+
         // Wallet product roles (AccountProductType)
         ['USD Wallet Account Control', 'liability', 'savings_control'],
         ['USD Interest On Wallet Account', 'expense', 'interest_expense'],
@@ -134,18 +136,18 @@ class GeneralLedgerSeeder extends Seeder
         ['USD Virtual Account Transfers Suspense', 'liability', 'suspense'],
         ['USD Virtual Account Collections', 'liability', 'suspense'],
 
-        // Loan product roles (LoanProductType) — see NGN block above for
-        // why Fund Source is liability-classified, not asset.
-        ['USD Loan Fund Source', 'liability', 'cash'],
+        // Loan product roles (LoanProductType) — see NGN block above.
         ['USD Loan Portfolio', 'asset', 'loan_portfolio'],
         ['USD Loan Interest On Loans', 'income', 'interest_income'],
         ['USD Loan Income From Fees', 'income', 'fee_income'],
         ['USD Loan Income From Penalties', 'income', 'penalty_income'],
         ['USD Loan Losses Written Off', 'expense', 'suspense'],
-        ['USD Loan Transfers Suspense', 'liability', 'suspense'],
         ['USD Loan Overpayment', 'liability', 'payable'],
         ['USD Loan Interest Receivable', 'asset', 'receivable'],
         ['USD Loan Suspended Interest', 'liability', 'suspense'],
+        ['USD Loan Recovery Income', 'income', 'fee_income'],
+        ['USD Loan Management Fee Income', 'income', 'fee_income'],
+        ['USD Loan Processing Fee Income', 'income', 'fee_income'],
 
         // Investment product roles (shares AccountProductType)
         ['USD Investment Savings Control', 'liability', 'savings_control'],
@@ -159,6 +161,28 @@ class GeneralLedgerSeeder extends Seeder
         ['USD Investment Interest Paid', 'asset', 'cash'],
         ['USD Investment Withholding Tax Payable', 'liability', 'tax'],
         ['USD Investment Settlement Maturity', 'asset', 'cash'],
+    ];
+
+    // GBP/EUR counterparts of just the savings-role GLs (not the full role set NGN/USD
+    // have) — these two currencies only ever back a single "<Currency> Savings Account"
+    // product (see AccountProductSeeder::seedForeignSavingsProduct()), seeded for demo
+    // multi-currency customer accounts.
+    private const GBP_DEFINITIONS = [
+        ['GBP Savings Control', 'liability', 'savings_control'],
+        ['GBP Interest On Savings', 'expense', 'interest_expense'],
+        ['GBP Income From Fees', 'income', 'fee_income'],
+        ['GBP Income From Penalties', 'income', 'penalty_income'],
+        ['GBP Transfers Suspense', 'liability', 'suspense'],
+        ['GBP Cash in Vault', 'asset', 'cash'],
+    ];
+
+    private const EUR_DEFINITIONS = [
+        ['EUR Savings Control', 'liability', 'savings_control'],
+        ['EUR Interest On Savings', 'expense', 'interest_expense'],
+        ['EUR Income From Fees', 'income', 'fee_income'],
+        ['EUR Income From Penalties', 'income', 'penalty_income'],
+        ['EUR Transfers Suspense', 'liability', 'suspense'],
+        ['EUR Cash in Vault', 'asset', 'cash'],
     ];
 
     // How many generic test GLs to generate per currency for ad hoc posting tests — cycled evenly across all 5 classifications.
@@ -187,8 +211,15 @@ class GeneralLedgerSeeder extends Seeder
             ['name' => 'Pound Sterling', 'status' => 'active', 'is_base_currency' => false],
         );
 
+        $eur = Currency::firstOrCreate(
+            ['code' => 'EUR'],
+            ['name' => 'Euro', 'status' => 'active', 'is_base_currency' => false],
+        );
+
         $this->seedDefinitions(self::DEFINITIONS, $ngn);
         $this->seedDefinitions(self::USD_DEFINITIONS, $usd);
+        $this->seedDefinitions(self::GBP_DEFINITIONS, $gbp);
+        $this->seedDefinitions(self::EUR_DEFINITIONS, $eur);
 
         $this->seedBulkTestLedgers($ngn, self::BULK_TEST_GL_COUNTS['NGN']);
         $this->seedBulkTestLedgers($usd, self::BULK_TEST_GL_COUNTS['USD']);
@@ -197,8 +228,8 @@ class GeneralLedgerSeeder extends Seeder
         $this->seedOpeningBalances();
     }
 
-    // Every "cash"-typed GL (Cash in Vault, Loan Fund Source, Investment Savings
-    // Reference, etc.) is a liquidity/funding-pool account that nothing else naturally
+    // Every "cash"-typed GL (Cash in Vault, Investment Savings Reference, etc.) is a
+    // liquidity/funding-pool account that nothing else naturally
     // credits first — every other GL either starts at 0 and only ever receives money via
     // real postings (fees, penalties, control accounts growing as customers transact), or
     // is one of these pools that has to already hold something before it can ever act as

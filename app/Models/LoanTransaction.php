@@ -34,6 +34,11 @@ class LoanTransaction extends Model
         return $this->belongsTo(LoanSchedule::class);
     }
 
+    public function loanRepayment(): BelongsTo
+    {
+        return $this->belongsTo(LoanRepayment::class);
+    }
+
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

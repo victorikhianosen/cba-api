@@ -29,5 +29,6 @@ class DatabaseSeeder extends Seeder
         $this->call(AccountProductSeeder::class);
         $this->call(LoanClassificationRuleSeeder::class);
         $this->call(CustomerAccountSeeder::class);
+        $this->call(DemoMultiCurrencyCustomerSeeder::class);
     }
 }

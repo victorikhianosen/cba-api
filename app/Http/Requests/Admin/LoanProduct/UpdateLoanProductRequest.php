@@ -15,16 +15,6 @@ class UpdateLoanProductRequest extends FormRequest
         return true;
     }
 
-    protected function prepareForValidation(): void
-    {
-        // Deliberately NOT snake-casing the name here — see StoreLoanProductRequest.
-        if ($this->filled('interest_calculation_days_in_year')) {
-            $this->merge([
-                'interest_calculation_days_in_year' => (string) $this->interest_calculation_days_in_year,
-            ]);
-        }
-    }
-
     public function rules(): array
     {
         $loanProductId = $this->route('id');
@@ -33,30 +23,17 @@ class UpdateLoanProductRequest extends FormRequest
             'name'          => ['nullable', 'string', 'max:255', Rule::unique('loan_products', 'name')->ignore($loanProductId)],
             'description'   => ['nullable', 'string'],
             'interest_rate' => ['nullable', 'numeric', 'min:0'],
+            'management_fee_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'processing_fee_percentage'  => ['nullable', 'numeric', 'min:0', 'max:100'],
 
             'min_principal_amount'                 => ['nullable', 'integer', new StrictInteger, 'min:0'],
             'max_principal_amount'                 => ['nullable', 'integer', new StrictInteger, 'min:0', 'gte:min_principal_amount'],
-            'default_principal_amount'             => ['nullable', 'integer', new StrictInteger, 'min:0'],
-            'min_nominal_interest_rate_per_period' => ['nullable', 'numeric', 'min:0'],
-            'max_nominal_interest_rate_per_period' => ['nullable', 'numeric', 'min:0', 'gte:min_nominal_interest_rate_per_period'],
             'interest_rate_frequency_type'          => ['nullable', Rule::in(['per_day', 'per_week', 'per_month', 'per_year'])],
             'interest_method'                      => ['nullable', Rule::in(['declining_balance', 'flat'])],
-            'interest_calculation_period_type'      => ['nullable', Rule::in(['daily', 'same_as_repayment_period'])],
             'repayment_every'                      => ['nullable', 'integer', 'min:1'],
             'repayment_frequency_type'              => ['nullable', Rule::in(['days', 'weeks', 'months'])],
-            'number_of_repayments'                 => ['nullable', 'integer', 'min:1'],
-            'min_number_of_repayments'              => ['nullable', 'integer', 'min:1'],
-            'max_number_of_repayments'              => ['nullable', 'integer', 'min:1', 'gte:min_number_of_repayments'],
-            'amortization_method'                  => ['nullable', Rule::in(['equal_installments', 'equal_principal'])],
-            'grace_on_principal_periods'            => ['nullable', 'integer', 'min:0'],
-            'grace_on_interest_periods'             => ['nullable', 'integer', 'min:0'],
-            'grace_interest_free_periods'           => ['nullable', 'integer', 'min:0'],
-            'grace_on_arrears_ageing'               => ['nullable', 'integer', 'min:0'],
             'arrears_tolerance_amount'              => ['nullable', 'integer', new StrictInteger, 'min:0'],
-            'overdue_days_for_npa'                 => ['nullable', 'integer', 'min:0'],
             'penalty_interest_rate'                => ['nullable', 'numeric', 'min:0'],
-            'days_in_month_type'                   => ['nullable', Rule::in(['actual', 'thirty'])],
-            'interest_calculation_days_in_year'    => ['nullable', Rule::in(['360', '365'])],
             'payment_allocation_order'   => ['nullable', 'array', 'size:4'],
             'payment_allocation_order.*' => ['required_with:payment_allocation_order', 'distinct', Rule::in(['penalty', 'fee', 'interest', 'principal'])],
         ];

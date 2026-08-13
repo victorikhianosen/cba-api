@@ -8,6 +8,7 @@ use App\Enums\Product\InvestmentProductType;
 use App\Models\InvestmentProduct;
 use App\Models\InvestmentSchedule;
 use App\Services\Posting\PostingService;
+use App\Services\Report\CronReportService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -29,24 +30,27 @@ class InvestmentInterestProcessingService
     public function __construct(
         private PostingService $postings,
         private InvestmentTransactionService $transactions,
+        private CronReportService $reports,
     ) {}
 
     /**
-     * @return array{accrued: int, paid: int, failed: int, dry_run_lines: string[]}
+     * @return array{accrued: int, paid: int, failed: int, dry_run_lines: string[], items: array}
      */
     public function process(bool $dryRun = false): array
     {
+        $startedAt    = now();
         $accrued      = 0;
         $paid         = 0;
         $failed       = 0;
         $dryRunLines  = [];
+        $items        = [];
 
         InvestmentSchedule::query()
             ->whereNull('accrued_at')
             ->whereDate('due_date', '<=', now()->toDateString())
             ->whereHas('investment', fn ($query) => $query->where('status', 'active'))
             ->with('investment.investmentProduct.generalLedgerMappings')
-            ->chunkById(self::CHUNK_SIZE, function ($schedules) use (&$accrued, &$failed, &$dryRunLines, $dryRun) {
+            ->chunkById(self::CHUNK_SIZE, function ($schedules) use (&$accrued, &$failed, &$dryRunLines, &$items, $dryRun) {
                 foreach ($schedules as $schedule) {
                     try {
                         if ($dryRun) {
@@ -54,10 +58,26 @@ class InvestmentInterestProcessingService
                             continue;
                         }
 
-                        $this->accrue($schedule);
-                        $accrued++;
+                        $row = $this->accrue($schedule);
+                        if ($row) {
+                            $accrued++;
+                            $items[] = [
+                                'label'     => "{$row['stage']} — {$row['loan_account']}",
+                                'status'    => 'success',
+                                'amount'    => $row['amount'],
+                                'reference' => $row['reference'],
+                                'detail'    => $row['gl'],
+                            ];
+                        }
                     } catch (\Throwable $e) {
                         $failed++;
+                        $items[] = [
+                            'label'     => "Interest Accrual — Schedule #{$schedule->id}",
+                            'status'    => 'failed',
+                            'amount'    => null,
+                            'reference' => null,
+                            'detail'    => $e->getMessage(),
+                        ];
                         report($e);
                         Log::channel('transactions')->error('investment_interest_accrual_failed', [
                             'investment_schedule_id' => $schedule->id,
@@ -73,7 +93,7 @@ class InvestmentInterestProcessingService
             ->whereDate('due_date', '<=', now()->toDateString())
             ->whereHas('investment', fn ($query) => $query->where('status', 'active'))
             ->with('investment.investmentProduct.generalLedgerMappings', 'investment.sourceAccount')
-            ->chunkById(self::CHUNK_SIZE, function ($schedules) use (&$paid, &$failed, &$dryRunLines, $dryRun) {
+            ->chunkById(self::CHUNK_SIZE, function ($schedules) use (&$paid, &$failed, &$dryRunLines, &$items, $dryRun) {
                 foreach ($schedules as $schedule) {
                     try {
                         $remaining = bcsub((string) $schedule->expected_interest_amount, (string) $schedule->paid_amount, 6);
@@ -87,10 +107,26 @@ class InvestmentInterestProcessingService
                             continue;
                         }
 
-                        $this->payout($schedule, $remaining);
-                        $paid++;
+                        $row = $this->payout($schedule, $remaining);
+                        if ($row) {
+                            $paid++;
+                            $items[] = [
+                                'label'     => "{$row['stage']} — {$row['loan_account']}",
+                                'status'    => 'success',
+                                'amount'    => $row['amount'],
+                                'reference' => $row['reference'],
+                                'detail'    => "Paid to {$row['customer_account']} ({$row['gl']})",
+                            ];
+                        }
                     } catch (\Throwable $e) {
                         $failed++;
+                        $items[] = [
+                            'label'     => "Interest Payout — Schedule #{$schedule->id}",
+                            'status'    => 'failed',
+                            'amount'    => null,
+                            'reference' => null,
+                            'detail'    => $e->getMessage(),
+                        ];
                         report($e);
                         Log::channel('transactions')->error('investment_interest_payout_failed', [
                             'investment_schedule_id' => $schedule->id,
@@ -100,21 +136,36 @@ class InvestmentInterestProcessingService
                 }
             });
 
+        $finishedAt = now();
+
+        $this->reports->send(
+            jobName: 'Investment Cron Job',
+            jobKey: 'investments-process-interest',
+            items: $items,
+            startedAt: $startedAt,
+            finishedAt: $finishedAt,
+            dryRun: $dryRun,
+        );
+
         return [
             'accrued'       => $accrued,
             'paid'          => $paid,
             'failed'        => $failed,
             'dry_run_lines' => $dryRunLines,
+            'items'         => $items,
         ];
     }
 
-    private function accrue(InvestmentSchedule $schedule): void
+    /**
+     * @return array{stage: string, loan_account: string, customer_account: string, gl: string, amount: string, reference: string}|null
+     */
+    private function accrue(InvestmentSchedule $schedule): ?array
     {
-        DB::transaction(function () use ($schedule) {
+        return DB::transaction(function () use ($schedule) {
             $locked = InvestmentSchedule::whereKey($schedule->id)->lockForUpdate()->firstOrFail();
 
             if ($locked->accrued_at !== null) {
-                return; // already handled by a concurrent/previous run
+                return null; // already handled by a concurrent/previous run
             }
 
             $investment = $schedule->investment;
@@ -145,16 +196,30 @@ class InvestmentInterestProcessingService
             );
 
             $locked->update(['accrued_at' => now()]);
+
+            // Pure GL-to-GL accrual — no customer account is a party yet (that happens at
+            // payout below), so customer_account is honestly reported as "—".
+            return [
+                'stage'            => 'Interest Accrual',
+                'loan_account'     => $investment->account_number,
+                'customer_account' => '— (not paid out yet)',
+                'gl'               => 'Interest Expense -> Interest Payable',
+                'amount'           => (string) $schedule->expected_interest_amount,
+                'reference'        => $financialTransaction->transaction_reference ?? $financialTransaction->posting?->reference ?? '—',
+            ];
         });
     }
 
-    private function payout(InvestmentSchedule $schedule, string $remaining): void
+    /**
+     * @return array{stage: string, loan_account: string, customer_account: string, gl: string, amount: string, reference: string}|null
+     */
+    private function payout(InvestmentSchedule $schedule, string $remaining): ?array
     {
-        DB::transaction(function () use ($schedule, $remaining) {
+        return DB::transaction(function () use ($schedule, $remaining) {
             $locked = InvestmentSchedule::whereKey($schedule->id)->lockForUpdate()->firstOrFail();
 
             if (! in_array($locked->status, ['pending', 'partial'], true)) {
-                return; // already paid by a concurrent/previous run
+                return null; // already paid by a concurrent/previous run
             }
 
             $investment = $schedule->investment;
@@ -188,6 +253,17 @@ class InvestmentInterestProcessingService
                 schedule: $locked,
                 description: "Interest paid via posting '{$payoutTransaction->posting?->reference}'.",
             );
+
+            // This IS a real customer account credit — the customer's source account
+            // actually receives the cash here.
+            return [
+                'stage'            => 'Interest Payout',
+                'loan_account'     => $investment->account_number,
+                'customer_account' => $investment->sourceAccount?->account_number ?? "Account #{$investment->source_account_id}",
+                'gl'               => 'Interest Payable -> Customer Account (Credit)',
+                'amount'           => $remaining,
+                'reference'        => $payoutTransaction->transaction_reference ?? $payoutTransaction->posting?->reference ?? '—',
+            ];
         });
     }
 

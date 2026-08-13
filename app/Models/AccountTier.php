@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AccountTier extends Model
 {
@@ -25,5 +26,10 @@ class AccountTier extends Model
             'require_address_verification'   => 'boolean',
             'require_face_verification'      => 'boolean',
         ];
+    }
+
+    public function accounts(): HasMany
+    {
+        return $this->hasMany(Account::class);
     }
 }

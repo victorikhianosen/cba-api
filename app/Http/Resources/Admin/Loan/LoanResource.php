@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources\Admin\Loan;
 
+use App\Services\Storage\FileStorageService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -55,20 +56,15 @@ class LoanResource extends JsonResource
             ] : null),
 
             'principal_amount'  => $this->principal_amount,
+            'loan_file_path'      => $this->loan_file_path,
+            'loan_file_url'      => app(FileStorageService::class)->url($this->loan_file_path),
 
             'interest_rate'                       => $this->interest_rate,
             'interest_rate_frequency_type'         => $this->interest_rate_frequency_type,
             'interest_method'                     => $this->interest_method,
-            'interest_calculation_period_type'     => $this->interest_calculation_period_type,
-            'interest_calculation_days_in_year'   => $this->interest_calculation_days_in_year,
             'repayment_every'                     => $this->repayment_every,
             'repayment_frequency_type'             => $this->repayment_frequency_type,
-            'number_of_repayments'                 => $this->number_of_repayments,
-            'amortization_method'                 => $this->amortization_method,
-            'grace_on_principal_periods'            => $this->grace_on_principal_periods,
-            'grace_on_interest_periods'             => $this->grace_on_interest_periods,
-            'grace_interest_free_periods'           => $this->grace_interest_free_periods,
-            'grace_on_arrears_ageing'                => $this->grace_on_arrears_ageing,
+            'duration'                 => $this->duration,
             'arrears_tolerance_amount'              => $this->arrears_tolerance_amount,
             'penalty_interest_rate'                  => $this->penalty_interest_rate,
             'payment_allocation_order'                => $this->payment_allocation_order,
@@ -98,8 +94,28 @@ class LoanResource extends JsonResource
             'interest_suspended_at'      => $this->interest_suspended_at,
             'suspended_interest_balance' => $this->suspended_interest_balance,
 
+            // withCount()'d by both LoanService::list() and find() — the list uses these
+            // for the "needs attention" column/filter, the detail page uses them for the
+            // tab-bar badges (see LoanDetail.tsx) so a pending request is visible before
+            // clicking into the Restructuring/Write-Off tab that actually holds it.
+            'pending_restructures_count' => $this->pending_restructures_count,
+            'pending_topups_count'        => $this->pending_topups_count,
+            'pending_refinances_count'    => $this->pending_refinances_count,
+            'pending_write_offs_count'    => $this->pending_write_offs_count,
+            'pending_repayments_count'    => $this->pending_repayments_count,
+            'pending_requests_count'      => $this->pending_restructures_count === null ? null : (
+                (int) $this->pending_restructures_count
+                + (int) $this->pending_topups_count
+                + (int) $this->pending_refinances_count
+                + (int) $this->pending_write_offs_count
+                + (int) $this->pending_repayments_count
+            ),
+
             'created_by'       => $this->created_by,
             'created_by_name'   => $this->whenLoaded('createdBy', fn () => $this->createdBy?->username),
+            'reviewed_by'      => $this->reviewed_by,
+            'reviewed_by_name'  => $this->whenLoaded('reviewedBy', fn () => $this->reviewedBy?->username),
+            'reviewed_at' => $this->reviewed_at,
             'approved_by'      => $this->approved_by,
             'approved_by_name'  => $this->whenLoaded('approvedBy', fn () => $this->approvedBy?->username),
             'approved_at' => $this->approved_at,

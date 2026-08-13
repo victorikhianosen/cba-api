@@ -132,17 +132,6 @@ class StoreCustomerRequest extends FormRequest
             $this->merge(['is_staff' => filter_var($this->input('is_staff'), FILTER_VALIDATE_BOOLEAN)]);
         }
 
-        if ($this->has('directors')) {
-            $directors = $this->input('directors', []);
-
-            foreach ($directors as $index => $director) {
-                if (array_key_exists('is_primary', $director) && ! is_bool($director['is_primary'])) {
-                    $directors[$index]['is_primary'] = filter_var($director['is_primary'], FILTER_VALIDATE_BOOLEAN);
-                }
-            }
-
-            $this->merge(['directors' => $directors]);
-        }
     }
 
     protected function passedValidation(): void

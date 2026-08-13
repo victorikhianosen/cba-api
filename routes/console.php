@@ -17,3 +17,13 @@ Schedule::command('investments:process-interest')
     ->dailyAt('01:00')
     ->withoutOverlapping()
     ->onOneServer();
+
+// LoanCronJobCommand -> LoanCronJobService: accrues daily penalty interest on overdue
+// loan installments and recomputes each touched loan's days-in-arrears/NPL
+// classification (auto-suspending/unsuspending interest as it crosses the performing
+// boundary). Staggered 30 minutes after the investment interest cron to avoid resource
+// contention if they ever share a worker.
+Schedule::command('loans:process-overdue')
+    ->dailyAt('01:30')
+    ->withoutOverlapping()
+    ->onOneServer();

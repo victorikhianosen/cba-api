@@ -33,19 +33,11 @@ return new class extends Migration
             $table->decimal('interest_rate', 19, 2);
             $table->enum('interest_rate_frequency_type', ['per_day', 'per_week', 'per_month', 'per_year']);
             $table->enum('interest_method', ['declining_balance', 'flat']);
-            $table->enum('interest_calculation_period_type', ['daily', 'same_as_repayment_period']);
-            $table->enum('interest_calculation_days_in_year', ['360', '365'])->default('365');
             $table->unsignedInteger('repayment_every');
             $table->enum('repayment_frequency_type', ['days', 'weeks', 'months']);
-            $table->unsignedInteger('number_of_repayments');
-            $table->enum('amortization_method', ['equal_installments', 'equal_principal']);
-            $table->unsignedInteger('grace_on_principal_periods')->default(0);
-            $table->unsignedInteger('grace_on_interest_periods')->default(0);
-            $table->unsignedInteger('grace_interest_free_periods')->default(0);
-            $table->unsignedInteger('grace_on_arrears_ageing')->default(0);
+            $table->unsignedInteger('duration');
             $table->decimal('arrears_tolerance_amount', 19, 2)->default(0);
             $table->decimal('penalty_interest_rate', 19, 2)->default(0);
-            $table->enum('days_in_month_type', ['actual', 'thirty'])->nullable();
 
             // Set on approval, not booking — the term hasn't started until money has moved.
             $table->date('start_date')->nullable();
